@@ -1,0 +1,48 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{AB72C2AA-6308-4134-94F0-F4B1472EA825}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="ConstraintControls\ConstraintControls.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="ConstraintControlsPlayground\ConstraintControlsPlayground.dproj">
+            <Dependencies/>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="ConstraintControls">
+        <MSBuild Projects="ConstraintControls\ConstraintControls.dproj"/>
+    </Target>
+    <Target Name="ConstraintControls:Clean">
+        <MSBuild Projects="ConstraintControls\ConstraintControls.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="ConstraintControls:Make">
+        <MSBuild Projects="ConstraintControls\ConstraintControls.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="ConstraintControlsPlayground">
+        <MSBuild Projects="ConstraintControlsPlayground\ConstraintControlsPlayground.dproj"/>
+    </Target>
+    <Target Name="ConstraintControlsPlayground:Clean">
+        <MSBuild Projects="ConstraintControlsPlayground\ConstraintControlsPlayground.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="ConstraintControlsPlayground:Make">
+        <MSBuild Projects="ConstraintControlsPlayground\ConstraintControlsPlayground.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="ConstraintControls;ConstraintControlsPlayground"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="ConstraintControls:Clean;ConstraintControlsPlayground:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="ConstraintControls:Make;ConstraintControlsPlayground:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>
