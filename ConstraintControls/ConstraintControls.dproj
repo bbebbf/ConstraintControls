@@ -106,7 +106,6 @@
         <DCCReference Include="ConstraintControls.ConstraintEdit.pas"/>
         <DCCReference Include="ConstraintControls.IntegerEdit.pas"/>
         <DCCReference Include="ConstraintControls.Registration.pas"/>
-        <DCCReference Include="ConstraintControls.IntegerEdit.Resources.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

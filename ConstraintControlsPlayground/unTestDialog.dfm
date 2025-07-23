@@ -36,10 +36,11 @@ object fmTestDialog: TfmTestDialog
     Width = 121
     Height = 23
     TabOrder = 2
-    RangeMinValue = 5
+    ExitOnInvalidValue = True
     RangeMinValueSet = True
-    RangeMaxValue = 31
     RangeMaxValueSet = True
     MessageValueOutOfRangeHint = 'Der Tag muss zwischen # und # liegen.'
+    RangeMinValue = 5
+    RangeMaxValue = 31
   end
 end

@@ -35,7 +35,6 @@ requires
 contains
   ConstraintControls.ConstraintEdit in 'ConstraintControls.ConstraintEdit.pas',
   ConstraintControls.IntegerEdit in 'ConstraintControls.IntegerEdit.pas',
-  ConstraintControls.Registration in 'ConstraintControls.Registration.pas',
-  ConstraintControls.IntegerEdit.Resources in 'ConstraintControls.IntegerEdit.Resources.pas';
+  ConstraintControls.Registration in 'ConstraintControls.Registration.pas';
 
 end.
