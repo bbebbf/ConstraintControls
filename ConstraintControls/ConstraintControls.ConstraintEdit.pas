@@ -42,39 +42,23 @@ type
   TOnExitQueryValidation<T> = procedure(Sender: TObject; const aValidationResult: TValidationResult<T>;
     var aValidationRequired: Boolean) of object;
 
-  TValidationDefaultMessages = record
-    InvalidInputTitle: string;
-    InvalidTextTitle: string;
-    InvalidValueHint: string;
-    ValueTooLowTitle: string;
-    ValueTooLowHint: string;
-    ValueTooHighTitle: string;
-    ValueTooHighHint: string;
-    ValueOutOfRangeHint: string;
+  TValidationMessageKind = (InvalidInputTitle,
+    InvalidTextTitle,
+    InvalidValueHint,
+    ValueTooLowTitle,
+    ValueTooLowHint,
+    ValueTooHighTitle,
+    ValueTooHighHint,
+    ValueOutOfRangeHint);
+
+  TValidationMessages = record
+    Messages: Array[TValidationMessageKind] of string;
+    ValuePlaceholder: Char;
   end;
 
-  TGetValueText<T> = reference to function(const aValue: T): string;
-
-  TValidationMessages<T> = class
-  strict private
-    fDefaultMessages: TValidationDefaultMessages;
-    fGetValueText: TGetValueText<T>;
-    function GetMessageString(const aPrimary, aSecondary: string): string;
-    function GetFormattedMessage(const aMessage: string; const aValuePlaceholder: Char;
-      const aValues: array of T): string;
-  public
-    constructor Create(const aDefaultMessages: TValidationDefaultMessages; const aGetValueText: TGetValueText<T>);
-    function GetInvalidInputTitle(const aMessage: string): string;
-    function GetInvalidTextTitle(const aMessage: string): string;
-    function GetInvalidValueHint(const aMessage: string): string;
-    function GetValueTooLowTitle(const aMessage: string): string;
-    function GetValueTooLowHint(const aMessage: string;
-      const aValuePlaceholder: Char; const aMinValue: T): string;
-    function GetValueTooHighTitle(const aMessage: string): string;
-    function GetValueTooHighHint(const aMessage: string;
-      const aValuePlaceholder: Char; const aMaxValue: T): string;
-    function GetValueOutOfRangeHint(const aMessage: string;
-      const aValuePlaceholder: Char; const aMinValue, aMaxValue: T): string;
+  TValidationMessage = record
+    ValidationMessage: string;
+    ValuePlaceholder: Char;
   end;
 
   TConstraintEdit<T> = class(TCustomEdit)
@@ -87,23 +71,13 @@ type
     fRangeMaxValue: T;
     fRangeMaxValueSet: Boolean;
 
-    fMessageValuePlaceholder: Char;
-    fMessageInvalidInputTitle: string;
-    fMessageInvalidTextTitle: string;
-    fMessageInvalidValueHint: string;
-    fMessageValueTooLowTitle: string;
-    fMessageValueTooLowHint: string;
-    fMessageValueTooHighTitle: string;
-    fMessageValueTooHighHint: string;
-    fMessageValueOutOfRangeHint: string;
+    fUserValidationMessages: TValidationMessages;
 
     fTextValidated: Boolean;
     fInvalidHint: TBalloonHint;
 
     fExitOnInvalidValue: Boolean;
     fOnExitQueryValidation: TOnExitQueryValidation<T>;
-
-    fValidationMessages: TValidationMessages<T>;
 
     function GetInheritedText: string;
     procedure SetInheritedText(const aValue: string);
@@ -117,10 +91,9 @@ type
     function IsInputValidInternal(const aInputData: TInputValidationData): TValidationResult<T>;
     function IsTextValidInternal(const aOnExit: Boolean): TValidationResult<T>;
     procedure ShowInvalidHint(const aValidationResult: TValidationResult<T>);
-    procedure CreateValidationMessagesInstance;
 
-    procedure SetInvalidInternal(var aValidationResult: TValidationResult<T>;
-      const aPrimaryMsg, aSecondaryMsg: string; const aValues: TArray<T>);
+    function ValuesReplaced(const aMessagePart: string;
+      const aCurrentText: string; aCurrentValue: T): string;
   strict protected
     procedure KeyPress(var Key: Char); override;
     procedure DoExit; override;
@@ -128,15 +101,17 @@ type
     function GetValueText(const aValue: T): string; virtual;
     function IsInputValid(const aInputData: TInputValidationData): TValidationResult<T>; virtual;
     function IsTextValid(const aText: string): TValidationResult<T>; virtual;
-    function GetValidationDefaultMessages: TValidationDefaultMessages; virtual;
-
-    procedure SetInvalidInput(var aValidationResult: TValidationResult<T>;
-      const aPrimaryMsg, aSecondaryMsg: string; const aValues: TArray<T>);
+    function GetValidationDefaultMessage(const aKind: TValidationMessageKind): TValidationMessage; virtual;
 
     function IsValueWithinBounds(const aValue: T; const aTestMaxOnly: Boolean;
       var aValidationResult: TValidationResult<T>): Boolean;
     procedure  DoOnExitQueryValidation(const aValidationResult: TValidationResult<T>;
       var aValidationRequired: Boolean);
+
+    function GetFormattedMessage(const aMessage: string; const aValuePlaceholder: Char;
+      const aCurrentText: string; aCurrentValue: T): string;
+    function GetValidationMessage(const aMessageKind: TValidationMessageKind;
+      const aCurrentText: string; aCurrentValue: T): string;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -229,15 +204,33 @@ type
     property RangeMinValueSet: Boolean read fRangeMinValueSet write SetRangeMinValueSet default False;
     property RangeMaxValueSet: Boolean read fRangeMaxValueSet write SetRangeMaxValueSet default False;
 
-    property MessageValuePlaceholder: Char read fMessageValuePlaceholder write SetMessageValuePlaceholder default '#';
-    property MessageInvalidInputTitle: string read fMessageInvalidInputTitle write fMessageInvalidInputTitle;
-    property MessageInvalidTextTitle: string read fMessageInvalidTextTitle write fMessageInvalidTextTitle;
-    property MessageInvalidValueHint: string read fMessageInvalidValueHint write fMessageInvalidValueHint;
-    property MessageValueTooLowTitle: string read fMessageValueTooLowTitle write fMessageValueTooLowTitle;
-    property MessageValueTooLowHint: string read fMessageValueTooLowHint write fMessageValueTooLowHint;
-    property MessageValueTooHighTitle: string read fMessageValueTooHighTitle write fMessageValueTooHighTitle;
-    property MessageValueTooHighHint: string read fMessageValueTooHighHint write fMessageValueTooHighHint;
-    property MessageValueOutOfRangeHint: string read fMessageValueOutOfRangeHint write fMessageValueOutOfRangeHint;
+    property MessageValuePlaceholder: Char
+      read fUserValidationMessages.ValuePlaceholder
+      write SetMessageValuePlaceholder default '#';
+    property MessageInvalidInputTitle: string
+      read fUserValidationMessages.Messages[TValidationMessageKind.InvalidInputTitle]
+      write fUserValidationMessages.Messages[TValidationMessageKind.InvalidInputTitle];
+    property MessageInvalidTextTitle: string
+      read fUserValidationMessages.Messages[TValidationMessageKind.InvalidTextTitle]
+      write fUserValidationMessages.Messages[TValidationMessageKind.InvalidTextTitle];
+    property MessageInvalidValueHint: string
+      read fUserValidationMessages.Messages[TValidationMessageKind.InvalidValueHint]
+      write fUserValidationMessages.Messages[TValidationMessageKind.InvalidValueHint];
+    property MessageValueTooLowTitle: string
+      read fUserValidationMessages.Messages[TValidationMessageKind.ValueTooLowTitle]
+      write fUserValidationMessages.Messages[TValidationMessageKind.ValueTooLowTitle];
+    property MessageValueTooLowHint: string
+      read fUserValidationMessages.Messages[TValidationMessageKind.ValueTooLowHint]
+      write fUserValidationMessages.Messages[TValidationMessageKind.ValueTooLowHint];
+    property MessageValueTooHighTitle: string
+      read fUserValidationMessages.Messages[TValidationMessageKind.ValueTooHighTitle]
+      write fUserValidationMessages.Messages[TValidationMessageKind.ValueTooHighTitle];
+    property MessageValueTooHighHint: string
+      read fUserValidationMessages.Messages[TValidationMessageKind.ValueTooHighHint]
+      write fUserValidationMessages.Messages[TValidationMessageKind.ValueTooHighHint];
+    property MessageValueOutOfRangeHint: string
+      read fUserValidationMessages.Messages[TValidationMessageKind.ValueOutOfRangeHint]
+      write fUserValidationMessages.Messages[TValidationMessageKind.ValueOutOfRangeHint];
   end;
 
 const
@@ -253,20 +246,12 @@ uses System.SysUtils, Vcl.Clipbrd;
 constructor TConstraintEdit<T>.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
-  fMessageValuePlaceholder := '#'
-end;
-
-procedure TConstraintEdit<T>.CreateValidationMessagesInstance;
-begin
-  if Assigned(fValidationMessages) then
-    Exit;
-  fValidationMessages := TValidationMessages<T>.Create(GetValidationDefaultMessages, GetValueText);
+  fUserValidationMessages.ValuePlaceholder := '#';
 end;
 
 destructor TConstraintEdit<T>.Destroy;
 begin
   fInvalidHint.Free;
-  fValidationMessages.Free;
   inherited;
 end;
 
@@ -275,6 +260,45 @@ begin
   inherited;
   fValue := fNotSetValue;
   fValueSet := False;
+end;
+
+function TConstraintEdit<T>.GetValidationMessage(const aMessageKind: TValidationMessageKind;
+  const aCurrentText: string; aCurrentValue: T): string;
+begin
+  var lMesssage := fUserValidationMessages.Messages[aMessageKind];
+  var lValuePlaceholder := fUserValidationMessages.ValuePlaceholder;
+  if Length(lMesssage) = 0 then
+  begin
+    var lDefaultMesssage := GetValidationDefaultMessage(aMessageKind);
+    lMesssage := lDefaultMesssage.ValidationMessage;
+    lValuePlaceholder := lDefaultMesssage.ValuePlaceholder;
+  end;
+  Result := GetFormattedMessage(lMesssage, lValuePlaceholder, aCurrentText, aCurrentValue);
+end;
+
+function TConstraintEdit<T>.GetFormattedMessage(const aMessage: string; const aValuePlaceholder: Char;
+  const aCurrentText: string; aCurrentValue: T): string;
+begin
+  var lMessageParts := aMessage.Split([aValuePlaceholder]);
+  if Length(lMessageParts) = 0 then
+    Exit('');
+  Result := lMessageParts[0];
+  for var i := 1 to High(lMessageParts) do
+    Result := Result + ValuesReplaced(lMessageParts[i], aCurrentText, aCurrentValue);
+end;
+
+function TConstraintEdit<T>.ValuesReplaced(const aMessagePart: string;
+  const aCurrentText: string; aCurrentValue: T): string;
+begin
+  Result := aMessagePart;
+  if aMessagePart.StartsWith('t', True) then
+    Result := aCurrentText + aMessagePart.Substring(1)
+  else if aMessagePart.StartsWith('v', True) then
+    Result := GetValueText(aCurrentValue) + aMessagePart.Substring(1)
+  else if aMessagePart.StartsWith('mi', True) then
+    Result := GetValueText(fRangeMinValue) + aMessagePart.Substring(2)
+  else if aMessagePart.StartsWith('ma', True) then
+    Result := GetValueText(fRangeMaxValue) + aMessagePart.Substring(2);
 end;
 
 function TConstraintEdit<T>.GetInheritedText: string;
@@ -302,24 +326,12 @@ begin
   inherited Text := aValue;
 end;
 
-procedure TConstraintEdit<T>.SetInvalidInput(var aValidationResult: TValidationResult<T>; const aPrimaryMsg,
-  aSecondaryMsg: string; const aValues: TArray<T>);
-begin
-
-end;
-
-procedure TConstraintEdit<T>.SetInvalidInternal(var aValidationResult: TValidationResult<T>; const aPrimaryMsg,
-  aSecondaryMsg: string; const aValues: TArray<T>);
-begin
-
-end;
-
 procedure TConstraintEdit<T>.SetMessageValuePlaceholder(const aValue: Char);
 begin
   if aValue < #32 then
-    fMessageValuePlaceholder := '#'
+    fUserValidationMessages.ValuePlaceholder := '#'
   else
-    fMessageValuePlaceholder := aValue;
+    fUserValidationMessages.ValuePlaceholder := aValue;
 end;
 
 procedure TConstraintEdit<T>.SetNotSetValue(const aValue: T);
@@ -363,9 +375,9 @@ begin
     fRangeMinValue := default(T);
 end;
 
-function TConstraintEdit<T>.GetValidationDefaultMessages: TValidationDefaultMessages;
+function TConstraintEdit<T>.GetValidationDefaultMessage(const aKind: TValidationMessageKind): TValidationMessage;
 begin
-  Result := default(TValidationDefaultMessages);
+  Result := default(TValidationMessage);
 end;
 
 function TConstraintEdit<T>.GetValue: T;
@@ -532,7 +544,6 @@ end;
 function TConstraintEdit<T>.IsInputValidInternal(const aInputData: TInputValidationData): TValidationResult<T>;
 begin
   Result := default(TValidationResult<T>);
-  CreateValidationMessagesInstance;
   if Length(aInputData.TextToValidate) = 0 then
   begin
     Result.IsValid := True;
@@ -545,8 +556,10 @@ begin
   end
   else
   begin
-    Result.InvalidHintTitle := fValidationMessages.GetInvalidInputTitle(fMessageInvalidInputTitle);
-    Result.InvalidHintDescription := fValidationMessages.GetInvalidValueHint(fMessageInvalidValueHint);
+    Result.InvalidHintTitle := GetValidationMessage(TValidationMessageKind.InvalidInputTitle,
+      aInputData.TextToValidate, fValue);
+    Result.InvalidHintDescription := GetValidationMessage(TValidationMessageKind.InvalidValueHint,
+      aInputData.TextToValidate, fValue);
   end;
 end;
 
@@ -557,7 +570,6 @@ end;
 
 function TConstraintEdit<T>.IsTextValidInternal(const aOnExit: Boolean): TValidationResult<T>;
 begin
-  CreateValidationMessagesInstance;
   var lValidationResult := default(TValidationResult<T>);
   if fTextValidated then
   begin
@@ -575,8 +587,10 @@ begin
       end
       else
       begin
-        lValidationResult.InvalidHintTitle := fValidationMessages.GetInvalidTextTitle(fMessageInvalidTextTitle);
-        lValidationResult.InvalidHintDescription := fValidationMessages.GetInvalidValueHint(fMessageInvalidValueHint);
+        lValidationResult.InvalidHintTitle := GetValidationMessage(TValidationMessageKind.InvalidTextTitle,
+          Text, lValidationResult.NewValue);
+        lValidationResult.InvalidHintDescription := GetValidationMessage(TValidationMessageKind.InvalidValueHint,
+          Text, lValidationResult.NewValue);
       end;
     end
     else
@@ -610,33 +624,29 @@ end;
 function TConstraintEdit<T>.IsValueWithinBounds(const aValue: T; const aTestMaxOnly: Boolean;
   var aValidationResult: TValidationResult<T>): Boolean;
 begin
-  CreateValidationMessagesInstance;
   if not aTestMaxOnly and fRangeMinValueSet and (CompareValues(aValue, fRangeMinValue) < 0) then
   begin
-    aValidationResult.InvalidHintTitle := fValidationMessages.GetValueTooLowTitle(fMessageValueTooLowTitle);
+    aValidationResult.InvalidHintTitle := GetValidationMessage(TValidationMessageKind.ValueTooLowTitle, Text, aValue);
     aValidationResult.IsValid := False;
   end;
   if fRangeMaxValueSet and (CompareValues(aValue, fRangeMaxValue) > 0) then
   begin
-    aValidationResult.InvalidHintTitle := fValidationMessages.GetValueTooHighTitle(fMessageValueTooHighTitle);
+    aValidationResult.InvalidHintTitle := GetValidationMessage(TValidationMessageKind.ValueTooHighTitle, Text, aValue);
     aValidationResult.IsValid := False;
   end;
   if not aValidationResult.IsValid then
   begin
     if fRangeMinValueSet and fRangeMaxValueSet then
     begin
-      aValidationResult.InvalidHintDescription :=
-        fValidationMessages.GetValueOutOfRangeHint(fMessageValueOutOfRangeHint, fMessageValuePlaceholder, fRangeMinValue, fRangeMaxValue);
+      aValidationResult.InvalidHintDescription := GetValidationMessage(TValidationMessageKind.ValueOutOfRangeHint, Text, aValue);
     end
     else if fRangeMinValueSet then
     begin
-      aValidationResult.InvalidHintDescription :=
-        fValidationMessages.GetValueTooLowHint(fMessageValueTooLowHint, fMessageValuePlaceholder, fRangeMinValue);
+      aValidationResult.InvalidHintDescription := GetValidationMessage(TValidationMessageKind.ValueTooLowHint, Text, aValue);
     end
     else if fRangeMaxValueSet then
     begin
-      aValidationResult.InvalidHintDescription :=
-        fValidationMessages.GetValueTooHighHint(fMessageValueTooHighHint, fMessageValuePlaceholder, fRangeMaxValue);
+      aValidationResult.InvalidHintDescription := GetValidationMessage(TValidationMessageKind.ValueTooHighHint, Text, aValue);
     end;
   end;
   Result := aValidationResult.IsValid;
@@ -694,87 +704,6 @@ procedure TInputValidationData.SetNewText(const aValue: string);
 begin
   fNewText := aValue;
   fTextToValidateGenerated := False;
-end;
-
-{ TValidationMessages<T> }
-
-constructor TValidationMessages<T>.Create(const aDefaultMessages: TValidationDefaultMessages;
-  const aGetValueText: TGetValueText<T>);
-begin
-  inherited Create;
-  fDefaultMessages := aDefaultMessages;
-  fGetValueText := aGetValueText;
-end;
-
-function TValidationMessages<T>.GetInvalidInputTitle(const aMessage: string): string;
-begin
-  Result := GetMessageString(aMessage, fDefaultMessages.InvalidInputTitle);
-end;
-
-function TValidationMessages<T>.GetInvalidTextTitle(const aMessage: string): string;
-begin
-  Result := GetMessageString(aMessage, fDefaultMessages.InvalidTextTitle);
-end;
-
-function TValidationMessages<T>.GetInvalidValueHint(const aMessage: string): string;
-begin
-  Result := GetMessageString(aMessage, fDefaultMessages.InvalidValueHint);
-end;
-
-function TValidationMessages<T>.GetValueOutOfRangeHint(const aMessage: string;
-  const aValuePlaceholder: Char; const aMinValue, aMaxValue: T): string;
-begin
-  var lMessage := GetMessageString(aMessage, fDefaultMessages.ValueOutOfRangeHint);
-  Result := GetFormattedMessage(lMessage, aValuePlaceholder, [aMinValue, aMaxValue]);
-end;
-
-function TValidationMessages<T>.GetValueTooHighHint(const aMessage: string;
-  const aValuePlaceholder: Char; const aMaxValue: T): string;
-begin
-  var lMessage := GetMessageString(aMessage, fDefaultMessages.ValueTooHighHint);
-  Result := GetFormattedMessage(lMessage, aValuePlaceholder, [aMaxValue]);
-end;
-
-function TValidationMessages<T>.GetValueTooHighTitle(const aMessage: string): string;
-begin
-  Result := GetMessageString(aMessage, fDefaultMessages.ValueTooHighTitle);
-end;
-
-function TValidationMessages<T>.GetValueTooLowHint(const aMessage: string;
-  const aValuePlaceholder: Char; const aMinValue: T): string;
-begin
-  var lMessage := GetMessageString(aMessage, fDefaultMessages.ValueTooLowHint);
-  Result := GetFormattedMessage(lMessage, aValuePlaceholder, [aMinValue]);
-end;
-
-function TValidationMessages<T>.GetValueTooLowTitle(const aMessage: string): string;
-begin
-  Result := GetMessageString(aMessage, fDefaultMessages.ValueTooLowTitle);
-end;
-
-function TValidationMessages<T>.GetFormattedMessage(const aMessage: string;
-  const aValuePlaceholder: Char; const aValues: array of T): string;
-begin
-  var lMessageParts := aMessage.Split([aValuePlaceholder]);
-  if Length(lMessageParts) = 0 then
-    Exit('');
-  Result := lMessageParts[0];
-  for var i := 1 to High(lMessageParts) do
-  begin
-    if i - 1 <= High(aValues) then
-      Result := Result + fGetValueText(aValues[i - 1])
-    else
-      Result := Result + aValuePlaceholder;
-    Result := Result + lMessageParts[i];
-  end;
-end;
-
-function TValidationMessages<T>.GetMessageString(const aPrimary, aSecondary: string): string;
-begin
-  if Length(aPrimary) > 0 then
-    Result := aPrimary
-  else
-    Result := aSecondary;
 end;
 
 end.

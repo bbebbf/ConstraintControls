@@ -10,7 +10,7 @@ type
     function GetValueText(const aValue: Int64): string; override;
     function IsInputValid(const aInputData: TInputValidationData): TValidationResult<Int64>; override;
     function IsTextValid(const aText: string): TValidationResult<Int64>; override;
-    function GetValidationDefaultMessages: TValidationDefaultMessages; override;
+    function GetValidationDefaultMessage(const aKind: TValidationMessageKind): TValidationMessage; override;
   public
     function CompareValues(const aValue1, aValue2: Int64): Integer; override;
   published
@@ -26,17 +26,28 @@ uses System.SysUtils;
 
 { TIntegerEdit }
 
-function TIntegerEdit.GetValidationDefaultMessages: TValidationDefaultMessages;
+function TIntegerEdit.GetValidationDefaultMessage(const aKind: TValidationMessageKind): TValidationMessage;
 begin
-  Result := default(TValidationDefaultMessages);
-  Result.InvalidInputTitle := 'Hinweis';
-  Result.InvalidTextTitle := 'Unzulässig';
-  Result.InvalidValueHint := 'Es sind nur Ziffern erlaubt.';
-  Result.ValueTooLowTitle := 'Zu niedrig';
-  Result.ValueTooLowHint := 'Zahl muss mindestens %d sein.';
-  Result.ValueTooHighTitle := 'Zu hoch';
-  Result.ValueTooHighHint := 'Zahl darf höchstens %d sein.';
-  Result.ValueOutOfRangeHint := 'Zahl muss zwischen %d und %d liegen.';
+  Result := default(TValidationMessage);
+  Result.ValuePlaceholder := '#';
+  case aKind of
+    TValidationMessageKind.InvalidInputTitle:
+      Result.ValidationMessage := 'Hinweis';
+    TValidationMessageKind.InvalidTextTitle:
+      Result.ValidationMessage := 'Unzulässig';
+    TValidationMessageKind.InvalidValueHint:
+      Result.ValidationMessage := 'Es sind nur Ziffern erlaubt.';
+    TValidationMessageKind.ValueTooLowTitle:
+      Result.ValidationMessage := 'Zu niedrig';
+    TValidationMessageKind.ValueTooLowHint:
+      Result.ValidationMessage := 'Die Zahl muss mindestens #mi sein.';
+    TValidationMessageKind.ValueTooHighTitle:
+      Result.ValidationMessage := 'Zu hoch';
+    TValidationMessageKind.ValueTooHighHint:
+      Result.ValidationMessage := 'Die Zahl darf höchstens #ma sein.';
+    TValidationMessageKind.ValueOutOfRangeHint:
+      Result.ValidationMessage := 'Die Zahl muss zwischen #mi und #ma liegen.';
+  end;
 end;
 
 function TIntegerEdit.GetValueText(const aValue: Int64): string;
