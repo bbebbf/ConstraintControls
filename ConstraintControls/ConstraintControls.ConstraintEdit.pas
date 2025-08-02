@@ -16,6 +16,8 @@ type
     fNewText: string;
     fTextBefore: string;
     fTextAfter: string;
+    fSelStart: Integer;
+    fSelLength: Integer;
     fTextToValidate: string;
     fTextToValidateGenerated: Boolean;
     function GetTextToValidate: string;
@@ -26,6 +28,8 @@ type
     property Reason: TInputValidationReason read fReason;
     property NewChar: Char read fNewChar write SetNewChar;
     property NewText: string read fNewText write SetNewText;
+    property SelStart: Integer read fSelStart;
+    property SelLength: Integer read fSelLength;
     property TextBefore: string read fTextBefore;
     property TextAfter: string read fTextAfter;
     property TextToValidate: string read GetTextToValidate;
@@ -677,11 +681,23 @@ begin
     Exit(fTextToValidate);
 
   if NewChar = #0 then
-    Result := TextBefore + NewText + TextAfter
+  begin
+    Result := TextBefore + NewText + TextAfter;
+  end
   else if NewChar = Char_Backspace then
-    Result := TextBefore + TextAfter
+  begin
+    Result := TextBefore;
+    var lTextBeforeLen := Length(fTextBefore);
+    if (fSelLength = 0) and (lTextBeforeLen > 0)  then
+    begin
+      Delete(Result, lTextBeforeLen, 1);
+    end;
+    Result := Result + TextAfter;
+  end
   else
+  begin
     Result := TextBefore + NewChar + TextAfter;
+  end;
 
   fTextToValidateGenerated := True;
   fTextToValidate := Result;
@@ -689,8 +705,10 @@ end;
 
 procedure TInputValidationData.SetControlData(const aEdit: TCustomEdit);
 begin
-  fTextBefore := Copy(aEdit.Text, 1, aEdit.SelStart);
-  fTextAfter := Copy(aEdit.Text, aEdit.SelStart + aEdit.SelLength + 1, Length(aEdit.Text));
+  fSelStart := aEdit.SelStart;
+  fSelLength := aEdit.SelLength;
+  fTextBefore := Copy(aEdit.Text, 1, fSelStart);
+  fTextAfter := Copy(aEdit.Text, fSelStart + fSelLength + 1, Length(aEdit.Text));
   fTextToValidateGenerated := False;
 end;
 

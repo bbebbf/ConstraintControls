@@ -4,14 +4,14 @@ interface
 
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
-  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, ConstraintControls.ConstraintEdit, ConstraintControls.IntegerEdit;
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, ConstraintControls.ConstraintEdit, ConstraintControls.IntegerEdit,
+  ConstraintControls.DateEdit;
 
 type
   TfmTestDialog = class(TForm)
     btCorfirm: TButton;
     btCancel: TButton;
-    IntegerEdit1: TIntegerEdit;
-    procedure FormCreate(Sender: TObject);
+    DateEdit1: TDateEdit;
   private
     { Private-Deklarationen }
   public
@@ -21,11 +21,5 @@ type
 implementation
 
 {$R *.dfm}
-
-procedure TfmTestDialog.FormCreate(Sender: TObject);
-begin
-  IntegerEdit1.Value := 77;
-  IntegerEdit1.Clear;
-end;
 
 end.

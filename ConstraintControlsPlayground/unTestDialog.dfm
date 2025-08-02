@@ -10,7 +10,6 @@ object fmTestDialog: TfmTestDialog
   Font.Height = -12
   Font.Name = 'Segoe UI'
   Font.Style = []
-  OnCreate = FormCreate
   TextHeight = 15
   object btCorfirm: TButton
     Left = 24
@@ -30,17 +29,11 @@ object fmTestDialog: TfmTestDialog
     ModalResult = 2
     TabOrder = 1
   end
-  object IntegerEdit1: TIntegerEdit
-    Left = 144
+  object DateEdit1: TDateEdit
+    Left = 128
     Top = 104
     Width = 121
     Height = 23
     TabOrder = 2
-    ExitOnInvalidValue = True
-    RangeMinValueSet = True
-    RangeMaxValueSet = True
-    MessageValueOutOfRangeHint = 'Der Tag muss zwischen # und # liegen.'
-    RangeMinValue = 5
-    RangeMaxValue = 31
   end
 end

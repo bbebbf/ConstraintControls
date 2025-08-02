@@ -3,7 +3,8 @@ unit ConstraintControls.Registration;
 interface
 
 uses
-  ConstraintControls.IntegerEdit;
+  ConstraintControls.IntegerEdit,
+  ConstraintControls.DateEdit;
 
 procedure Register;
 
@@ -13,7 +14,7 @@ uses System.Classes;
 
 procedure Register;
 begin
-  System.Classes.RegisterComponents('ConstraintControls', [TIntegerEdit]);
+  System.Classes.RegisterComponents('ConstraintControls', [TIntegerEdit, TDateEdit]);
 end;
 
 end.

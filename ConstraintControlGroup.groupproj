@@ -9,6 +9,9 @@
         <Projects Include="ConstraintControlsPlayground\ConstraintControlsPlayground.dproj">
             <Dependencies/>
         </Projects>
+        <Projects Include="ConstraintControlsTests\ConstraintControlsTests.dproj">
+            <Dependencies/>
+        </Projects>
     </ItemGroup>
     <ProjectExtensions>
         <Borland.Personality>Default.Personality.12</Borland.Personality>
@@ -35,14 +38,23 @@
     <Target Name="ConstraintControlsPlayground:Make">
         <MSBuild Projects="ConstraintControlsPlayground\ConstraintControlsPlayground.dproj" Targets="Make"/>
     </Target>
+    <Target Name="ConstraintControlsTests">
+        <MSBuild Projects="ConstraintControlsTests\ConstraintControlsTests.dproj"/>
+    </Target>
+    <Target Name="ConstraintControlsTests:Clean">
+        <MSBuild Projects="ConstraintControlsTests\ConstraintControlsTests.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="ConstraintControlsTests:Make">
+        <MSBuild Projects="ConstraintControlsTests\ConstraintControlsTests.dproj" Targets="Make"/>
+    </Target>
     <Target Name="Build">
-        <CallTarget Targets="ConstraintControls;ConstraintControlsPlayground"/>
+        <CallTarget Targets="ConstraintControls;ConstraintControlsPlayground;ConstraintControlsTests"/>
     </Target>
     <Target Name="Clean">
-        <CallTarget Targets="ConstraintControls:Clean;ConstraintControlsPlayground:Clean"/>
+        <CallTarget Targets="ConstraintControls:Clean;ConstraintControlsPlayground:Clean;ConstraintControlsTests:Clean"/>
     </Target>
     <Target Name="Make">
-        <CallTarget Targets="ConstraintControls:Make;ConstraintControlsPlayground:Make"/>
+        <CallTarget Targets="ConstraintControls:Make;ConstraintControlsPlayground:Make;ConstraintControlsTests:Make"/>
     </Target>
     <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
 </Project>
