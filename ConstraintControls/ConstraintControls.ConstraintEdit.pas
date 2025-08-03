@@ -77,6 +77,7 @@ type
 
     fUserValidationMessages: TValidationMessages;
 
+    fUpdateTextCounter: Integer;
     fTextValidated: Boolean;
     fInvalidHint: TBalloonHint;
 
@@ -90,7 +91,6 @@ type
     procedure WMPaste(var Msg: TWMPaste); message WM_PASTE;
     procedure WMClear(var Msg: TWMClear); message WM_CLEAR;
     procedure WMCut(var Msg: TWMCut); message WM_CUT;
-    procedure UpdateText;
     function NewInputValidationData(const aReason: TInputValidationReason): TInputValidationData;
     function IsInputValidInternal(const aInputData: TInputValidationData): TValidationResult<T>;
     function IsTextValidInternal(const aOnExit: Boolean): TValidationResult<T>;
@@ -99,10 +99,14 @@ type
     function ValuesReplaced(const aMessagePart: string;
       const aCurrentText: string; aCurrentValue: T): string;
   strict protected
+    procedure BeginUpdateText;
+    procedure EndUpdateText;
+    procedure UpdateText;
     procedure KeyPress(var Key: Char); override;
     procedure DoExit; override;
 
     function GetValueText(const aValue: T): string; virtual;
+    function GetNoValueText: string; virtual;
     function IsInputValid(const aInputData: TInputValidationData): TValidationResult<T>; virtual;
     function IsTextValid(const aText: string): TValidationResult<T>; virtual;
     function GetValidationDefaultMessage(const aKind: TValidationMessageKind): TValidationMessage; virtual;
@@ -407,6 +411,11 @@ begin
   Result := '';
 end;
 
+function TConstraintEdit<T>.GetNoValueText: string;
+begin
+  Result := '';
+end;
+
 procedure TConstraintEdit<T>.SetValue(const aValue: T);
 begin
   fValue := aValue;
@@ -526,12 +535,32 @@ begin
     fOnExitQueryValidation(Self, aValidationResult, aValidationRequired);
 end;
 
+procedure TConstraintEdit<T>.BeginUpdateText;
+begin
+  Inc(fUpdateTextCounter);
+end;
+
+procedure TConstraintEdit<T>.EndUpdateText;
+begin
+  var lCallUpdate := False;
+  if fUpdateTextCounter > 0 then
+  begin
+    Dec(fUpdateTextCounter);
+    lCallUpdate := (fUpdateTextCounter = 0);
+  end;
+  if lCallUpdate then
+    UpdateText;
+end;
+
 procedure TConstraintEdit<T>.UpdateText;
 begin
+  if fUpdateTextCounter > 0 then
+    Exit;
+
   if fValueSet then
     SetInheritedText(GetValueText(fValue))
   else
-    SetInheritedText('');
+    SetInheritedText(GetNoValueText);
 end;
 
 function TConstraintEdit<T>.NewInputValidationData(const aReason: TInputValidationReason): TInputValidationData;
