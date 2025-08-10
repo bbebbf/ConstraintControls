@@ -35,7 +35,7 @@ type
     property TextToValidate: string read GetTextToValidate;
   end;
 
-  TValidationResult<T> = record
+  TValidationResult<T: record> = record
     NewValue: T;
     IsValid: Boolean;
     ValidationNotRequired: Boolean;
@@ -43,7 +43,7 @@ type
     InvalidHintDescription: string;
   end;
 
-  TOnExitQueryValidation<T> = procedure(Sender: TObject; const aValidationResult: TValidationResult<T>;
+  TOnExitQueryValidation<T: record> = procedure(Sender: TObject; const aValidationResult: TValidationResult<T>;
     var aValidationRequired: Boolean) of object;
 
   TValidationMessageKind = (InvalidInputTitle,
@@ -65,29 +65,61 @@ type
     ValuePlaceholder: Char;
   end;
 
-  TConstraintEdit<T> = class(TCustomEdit)
+  TValueCompare<T> = reference to function(const aValue1, aValue2: T): Integer;
+  TConstraintNullableValue<T: record> = class;
+  TOnConstraintNullableValueNotifyEvent<T: record> = procedure(const aSender: TConstraintNullableValue<T>) of object;
+
+  TConstraintNullableValue<T: record> = class(TPersistent)
   strict private
     fValue: T;
-    fValueSet: Boolean;
-    fNotSetValue: T;
-    fRangeMinValue: T;
-    fRangeMinValueSet: Boolean;
-    fRangeMaxValue: T;
-    fRangeMaxValueSet: Boolean;
+    fNullValue: T;
+    fNull: Boolean;
+    fValidated: Boolean;
+    fOnValueCompare: TValueCompare<T>;
+    fOnValueChanged: TOnConstraintNullableValueNotifyEvent<T>;
+    fOnValueRead: TOnConstraintNullableValueNotifyEvent<T>;
+    function DoValueCompare(const aValue1, aValue2: T): Integer;
+    procedure DoValueChanged;
+    procedure DoValueRead;
+  strict protected
+    function GetValue: T;
+    procedure SetValue(const aValue: T);
+    procedure SetNull(const aValue: Boolean);
+    function GetNullValue: T;
+    procedure SetNullValue(const aValue: T);
+  public
+    constructor Create;
+    procedure InvalidateValue;
+    property Value: T read GetValue write SetValue;
+    property NullValue: T read GetNullValue write SetNullValue;
+    property Validated: Boolean read fValidated;
+  published
+    property Null: Boolean read fNull write SetNull default True;
+    property OnValueCompare: TValueCompare<T> read fOnValueCompare write fOnValueCompare;
+    property OnValueChanged: TOnConstraintNullableValueNotifyEvent<T> read fOnValueChanged write fOnValueChanged;
+    property OnValueRead: TOnConstraintNullableValueNotifyEvent<T> read fOnValueRead write fOnValueRead;
+  end;
 
+  TConstraintEditValueType = (vtValue, vtRangeMin, vtRangeMax);
+
+  TConstraintEdit<T: record> = class(TCustomEdit)
+  strict private
+    fValue: TConstraintNullableValue<T>;
+    fRangeMin: TConstraintNullableValue<T>;
+    fRangeMax: TConstraintNullableValue<T>;
     fUserValidationMessages: TValidationMessages;
-
-    fUpdateTextCounter: Integer;
-    fTextValidated: Boolean;
     fInvalidHint: TBalloonHint;
-
     fExitOnInvalidValue: Boolean;
     fOnExitQueryValidation: TOnExitQueryValidation<T>;
+
+    procedure OnValueChangedUpdateText(const aSender: TConstraintNullableValue<T>);
+    procedure OnRangeMinValueChangedAdjustMax(const aSender: TConstraintNullableValue<T>);
+    procedure OnRangeMaxValueChangedAdjustMin(const aSender: TConstraintNullableValue<T>);
+    procedure OnValueReadValidate(const aSender: TConstraintNullableValue<T>);
 
     function GetInheritedText: string;
     procedure SetInheritedText(const aValue: string);
 
-    procedure SetValueSet(const aValue: Boolean);
     procedure WMPaste(var Msg: TWMPaste); message WM_PASTE;
     procedure WMClear(var Msg: TWMClear); message WM_CLEAR;
     procedure WMCut(var Msg: TWMCut); message WM_CUT;
@@ -99,11 +131,11 @@ type
     function ValuesReplaced(const aMessagePart: string;
       const aCurrentText: string; aCurrentValue: T): string;
   strict protected
-    procedure BeginUpdateText;
-    procedure EndUpdateText;
-    procedure UpdateText;
     procedure KeyPress(var Key: Char); override;
     procedure DoExit; override;
+
+    class function CreateValueInstance: TConstraintNullableValue<T>; virtual;
+    function GetValueInstance(const aValueType: TConstraintEditValueType): TConstraintNullableValue<T>;
 
     function GetValueText(const aValue: T): string; virtual;
     function GetNoValueText: string; virtual;
@@ -123,17 +155,7 @@ type
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    function GetValue: T;
     procedure Clear; override;
-    procedure SetValue(const aValue: T);
-    function GetNotSetValue: T;
-    procedure SetNotSetValue(const aValue: T);
-    function GetRangeMinValue: T;
-    procedure SetRangeMinValue(const aValue: T);
-    procedure SetRangeMinValueSet(const aValue: Boolean);
-    function GetRangeMaxValue: T;
-    procedure SetRangeMaxValue(const aValue: T);
-    procedure SetRangeMaxValueSet(const aValue: Boolean);
     procedure SetMessageValuePlaceholder(const aValue: Char);
     function CompareValues(const aValue1, aValue2: T): Integer; virtual;
 
@@ -206,11 +228,8 @@ type
     property OnStartDock;
     property OnStartDrag;
 
-    property ValueSet: Boolean read fValueSet write SetValueSet default False;
     property ExitOnInvalidValue: Boolean read fExitOnInvalidValue write fExitOnInvalidValue default False;
     property OnExitQueryValidation: TOnExitQueryValidation<T> read fOnExitQueryValidation write fOnExitQueryValidation;
-    property RangeMinValueSet: Boolean read fRangeMinValueSet write SetRangeMinValueSet default False;
-    property RangeMaxValueSet: Boolean read fRangeMaxValueSet write SetRangeMaxValueSet default False;
 
     property MessageValuePlaceholder: Char
       read fUserValidationMessages.ValuePlaceholder
@@ -254,20 +273,81 @@ uses System.SysUtils, Vcl.Clipbrd;
 constructor TConstraintEdit<T>.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+  fValue := CreateValueInstance;
+  fValue.OnValueCompare := CompareValues;
+  fValue.OnValueChanged := OnValueChangedUpdateText;
+  fValue.OnValueRead := OnValueReadValidate;
+
+  fRangeMin := CreateValueInstance;
+  fRangeMin.OnValueCompare := CompareValues;
+  fRangeMin.OnValueChanged := OnRangeMinValueChangedAdjustMax;
+
+  fRangeMax := CreateValueInstance;
+  fRangeMax.OnValueCompare := CompareValues;
+  fRangeMax.OnValueChanged := OnRangeMaxValueChangedAdjustMin;
+
   fUserValidationMessages.ValuePlaceholder := '#';
 end;
 
 destructor TConstraintEdit<T>.Destroy;
 begin
+  fValue.Free;
+  fRangeMin.Free;
+  fRangeMax.Free;
   fInvalidHint.Free;
   inherited;
+end;
+
+class function TConstraintEdit<T>.CreateValueInstance: TConstraintNullableValue<T>;
+begin
+  raise ENotImplemented.Create(ClassName + 'CreateValueInstance');
+end;
+
+function TConstraintEdit<T>.GetValueInstance(const aValueType: TConstraintEditValueType): TConstraintNullableValue<T>;
+begin
+  case aValueType of
+    TConstraintEditValueType.vtValue:
+      Result := fValue;
+    TConstraintEditValueType.vtRangeMin:
+      Result := fRangeMin;
+    TConstraintEditValueType.vtRangeMax:
+      Result := fRangeMax;
+  end;
+end;
+
+procedure TConstraintEdit<T>.OnValueChangedUpdateText(const aSender: TConstraintNullableValue<T>);
+begin
+  if aSender.Null then
+    SetInheritedText(GetNoValueText)
+  else
+    SetInheritedText(GetValueText(aSender.Value));
+end;
+
+procedure TConstraintEdit<T>.OnRangeMinValueChangedAdjustMax(const aSender: TConstraintNullableValue<T>);
+begin
+  if not aSender.Null and not fRangeMax.Null and (CompareValues(aSender.Value, fRangeMax.Value) > 0) then
+    fRangeMax.Value := aSender.Value;
+end;
+
+procedure TConstraintEdit<T>.OnRangeMaxValueChangedAdjustMin(const aSender: TConstraintNullableValue<T>);
+begin
+  if not aSender.Null and not fRangeMin.Null and (CompareValues(aSender.Value, fRangeMin.Value) < 0) then
+    fRangeMin.Value := aSender.Value;
+end;
+
+procedure TConstraintEdit<T>.OnValueReadValidate(const aSender: TConstraintNullableValue<T>);
+begin
+  var lValidationResult := IsTextValidInternal(False);
+  if not lValidationResult.IsValid then
+  begin
+    fValue.Null := True;
+  end;
 end;
 
 procedure TConstraintEdit<T>.Clear;
 begin
   inherited;
-  fValue := fNotSetValue;
-  fValueSet := False;
+  fValue.Null := True;
 end;
 
 function TConstraintEdit<T>.GetValidationMessage(const aMessageKind: TValidationMessageKind;
@@ -304,29 +384,14 @@ begin
   else if aMessagePart.StartsWith('v', True) then
     Result := GetValueText(aCurrentValue) + aMessagePart.Substring(1)
   else if aMessagePart.StartsWith('mi', True) then
-    Result := GetValueText(fRangeMinValue) + aMessagePart.Substring(2)
+    Result := GetValueText(fRangeMin.Value) + aMessagePart.Substring(2)
   else if aMessagePart.StartsWith('ma', True) then
-    Result := GetValueText(fRangeMaxValue) + aMessagePart.Substring(2);
+    Result := GetValueText(fRangeMax.Value) + aMessagePart.Substring(2);
 end;
 
 function TConstraintEdit<T>.GetInheritedText: string;
 begin
   Result := inherited Text;
-end;
-
-function TConstraintEdit<T>.GetNotSetValue: T;
-begin
-  Result := fNotSetValue;
-end;
-
-function TConstraintEdit<T>.GetRangeMaxValue: T;
-begin
-  Result := fRangeMaxValue;
-end;
-
-function TConstraintEdit<T>.GetRangeMinValue: T;
-begin
-  Result := fRangeMinValue;
 end;
 
 procedure TConstraintEdit<T>.SetInheritedText(const aValue: string);
@@ -342,63 +407,9 @@ begin
     fUserValidationMessages.ValuePlaceholder := aValue;
 end;
 
-procedure TConstraintEdit<T>.SetNotSetValue(const aValue: T);
-begin
-  fNotSetValue := aValue;
-  if not fValueSet then
-    fValue := fNotSetValue;
-end;
-
-procedure TConstraintEdit<T>.SetRangeMaxValue(const aValue: T);
-begin
-  fRangeMaxValue := aValue;
-  fRangeMaxValueSet := True;
-  if CompareValues(fRangeMaxValue, fRangeMinValue) < 0 then
-    SetRangeMinValue(fRangeMaxValue);
-end;
-
-procedure TConstraintEdit<T>.SetRangeMaxValueSet(const aValue: Boolean);
-begin
-  if fRangeMaxValueSet = aValue then
-    Exit;
-  fRangeMaxValueSet := aValue;
-  if not fRangeMaxValueSet then
-    fRangeMaxValue := default(T);
-end;
-
-procedure TConstraintEdit<T>.SetRangeMinValue(const aValue: T);
-begin
-  fRangeMinValue := aValue;
-  fRangeMinValueSet := True;
-  if CompareValues(fRangeMinValue,  fRangeMaxValue) > 0 then
-    SetRangeMaxValue(fRangeMinValue);
-end;
-
-procedure TConstraintEdit<T>.SetRangeMinValueSet(const aValue: Boolean);
-begin
-  if fRangeMinValueSet = aValue then
-    Exit;
-  fRangeMinValueSet := aValue;
-  if not fRangeMinValueSet then
-    fRangeMinValue := default(T);
-end;
-
 function TConstraintEdit<T>.GetValidationDefaultMessage(const aKind: TValidationMessageKind): TValidationMessage;
 begin
   Result := default(TValidationMessage);
-end;
-
-function TConstraintEdit<T>.GetValue: T;
-begin
-  var lValidationResult := IsTextValidInternal(False);
-  if lValidationResult.IsValid then
-  begin
-    Result := fValue;
-  end
-  else
-  begin
-    Result := fNotSetValue;
-  end;
 end;
 
 function TConstraintEdit<T>.CompareValues(const aValue1, aValue2: T): Integer;
@@ -416,23 +427,6 @@ begin
   Result := '';
 end;
 
-procedure TConstraintEdit<T>.SetValue(const aValue: T);
-begin
-  fValue := aValue;
-  fValueSet := True;
-  UpdateText;
-end;
-
-procedure TConstraintEdit<T>.SetValueSet(const aValue: Boolean);
-begin
-  fValueSet := aValue;
-  if not fValueSet then
-  begin
-    fValue := fNotSetValue;
-  end;
-  UpdateText;
-end;
-
 procedure TConstraintEdit<T>.KeyPress(var Key: Char);
 begin
   inherited;
@@ -444,7 +438,7 @@ begin
   var lValidationResult := IsInputValidInternal(lInputValidationData);
   if lValidationResult.IsValid then
   begin
-    fTextValidated := False;
+    fValue.InvalidateValue;
   end
   else
   begin
@@ -459,7 +453,7 @@ begin
   var lValidationResult := IsInputValidInternal(lInputValidationData);
   if lValidationResult.IsValid then
   begin
-    fTextValidated := False;
+    fValue.InvalidateValue;
     inherited;
   end
   else
@@ -474,7 +468,7 @@ begin
   var lValidationResult := IsInputValidInternal(lInputValidationData);
   if lValidationResult.IsValid then
   begin
-    fTextValidated := False;
+    fValue.InvalidateValue;
     inherited;
   end
   else
@@ -490,7 +484,7 @@ begin
   var lValidationResult := IsInputValidInternal(lInputValidationData);
   if lValidationResult.IsValid then
   begin
-    fTextValidated := False;
+    fValue.InvalidateValue;
     inherited;
   end
   else
@@ -516,7 +510,7 @@ begin
   end;
   if lExitOk then
   begin
-    UpdateText;
+    OnValueChangedUpdateText(fValue);
     if Assigned(fInvalidHint) then
       fInvalidHint.HideHint;
     inherited;
@@ -533,34 +527,6 @@ procedure TConstraintEdit<T>.DoOnExitQueryValidation(const aValidationResult: TV
 begin
   if Assigned(fOnExitQueryValidation) then
     fOnExitQueryValidation(Self, aValidationResult, aValidationRequired);
-end;
-
-procedure TConstraintEdit<T>.BeginUpdateText;
-begin
-  Inc(fUpdateTextCounter);
-end;
-
-procedure TConstraintEdit<T>.EndUpdateText;
-begin
-  var lCallUpdate := False;
-  if fUpdateTextCounter > 0 then
-  begin
-    Dec(fUpdateTextCounter);
-    lCallUpdate := (fUpdateTextCounter = 0);
-  end;
-  if lCallUpdate then
-    UpdateText;
-end;
-
-procedure TConstraintEdit<T>.UpdateText;
-begin
-  if fUpdateTextCounter > 0 then
-    Exit;
-
-  if fValueSet then
-    SetInheritedText(GetValueText(fValue))
-  else
-    SetInheritedText(GetNoValueText);
 end;
 
 function TConstraintEdit<T>.NewInputValidationData(const aReason: TInputValidationReason): TInputValidationData;
@@ -590,9 +556,9 @@ begin
   else
   begin
     Result.InvalidHintTitle := GetValidationMessage(TValidationMessageKind.InvalidInputTitle,
-      aInputData.TextToValidate, fValue);
+      aInputData.TextToValidate, fValue.Value);
     Result.InvalidHintDescription := GetValidationMessage(TValidationMessageKind.InvalidValueHint,
-      aInputData.TextToValidate, fValue);
+      aInputData.TextToValidate, fValue.Value);
   end;
 end;
 
@@ -604,7 +570,7 @@ end;
 function TConstraintEdit<T>.IsTextValidInternal(const aOnExit: Boolean): TValidationResult<T>;
 begin
   var lValidationResult := default(TValidationResult<T>);
-  if fTextValidated then
+  if fValue.Validated then
   begin
     lValidationResult.IsValid := True;
   end
@@ -632,14 +598,11 @@ begin
     end;
     if lValueValidated then
     begin
-      fValue := lValidationResult.NewValue;
-      fValueSet := True;
-      fTextValidated := True;
+      fValue.Value := lValidationResult.NewValue;
     end
     else
     begin
-      fValue := fNotSetValue;
-      fValueSet := False;
+      fValue.Null := True;
     end;
     if aOnExit and not lValidationResult.ValidationNotRequired then
     begin
@@ -657,27 +620,27 @@ end;
 function TConstraintEdit<T>.IsValueWithinBounds(const aValue: T; const aTestMaxOnly: Boolean;
   var aValidationResult: TValidationResult<T>): Boolean;
 begin
-  if not aTestMaxOnly and fRangeMinValueSet and (CompareValues(aValue, fRangeMinValue) < 0) then
+  if not aTestMaxOnly and not fRangeMin.Null and (CompareValues(aValue, fRangeMin.Value) < 0) then
   begin
     aValidationResult.InvalidHintTitle := GetValidationMessage(TValidationMessageKind.ValueTooLowTitle, Text, aValue);
     aValidationResult.IsValid := False;
   end;
-  if fRangeMaxValueSet and (CompareValues(aValue, fRangeMaxValue) > 0) then
+  if not fRangeMax.Null and (CompareValues(aValue, fRangeMax.Value) > 0) then
   begin
     aValidationResult.InvalidHintTitle := GetValidationMessage(TValidationMessageKind.ValueTooHighTitle, Text, aValue);
     aValidationResult.IsValid := False;
   end;
   if not aValidationResult.IsValid then
   begin
-    if fRangeMinValueSet and fRangeMaxValueSet then
+    if not fRangeMin.Null and not fRangeMax.Null then
     begin
       aValidationResult.InvalidHintDescription := GetValidationMessage(TValidationMessageKind.ValueOutOfRangeHint, Text, aValue);
     end
-    else if fRangeMinValueSet then
+    else if not fRangeMin.Null then
     begin
       aValidationResult.InvalidHintDescription := GetValidationMessage(TValidationMessageKind.ValueTooLowHint, Text, aValue);
     end
-    else if fRangeMaxValueSet then
+    else if not fRangeMax.Null then
     begin
       aValidationResult.InvalidHintDescription := GetValidationMessage(TValidationMessageKind.ValueTooHighHint, Text, aValue);
     end;
@@ -751,6 +714,84 @@ procedure TInputValidationData.SetNewText(const aValue: string);
 begin
   fNewText := aValue;
   fTextToValidateGenerated := False;
+end;
+
+{ TConstraintNullableValue<T> }
+
+constructor TConstraintNullableValue<T>.Create;
+begin
+  inherited Create;
+  fNull := True;
+end;
+
+function TConstraintNullableValue<T>.GetValue: T;
+begin
+  if not fValidated then
+    DoValueRead;
+  if fNull then
+    Result := fNullValue
+  else
+    Result := fValue;
+end;
+
+procedure TConstraintNullableValue<T>.InvalidateValue;
+begin
+  fValidated := False;
+end;
+
+procedure TConstraintNullableValue<T>.SetValue(const aValue: T);
+begin
+  if (DoValueCompare(fValue, aValue) = 0) and not fNull then
+    Exit;
+  fValue := aValue;
+  fNull := False;
+  fValidated := True;
+  DoValueChanged;
+end;
+
+procedure TConstraintNullableValue<T>.SetNull(const aValue: Boolean);
+begin
+  if fNull = aValue then
+    Exit;
+  fNull := aValue;
+  if fNull then
+    fValue := default(T);
+  fValidated := True;
+  DoValueChanged;
+end;
+
+function TConstraintNullableValue<T>.GetNullValue: T;
+begin
+  Result := fNullValue;
+end;
+
+procedure TConstraintNullableValue<T>.SetNullValue(const aValue: T);
+begin
+  if DoValueCompare(fNullValue, aValue) = 0 then
+    Exit;
+  fNullValue := aValue;
+  if fNull then
+    DoValueChanged;
+end;
+
+function TConstraintNullableValue<T>.DoValueCompare(const aValue1, aValue2: T): Integer;
+begin
+  if Assigned(fOnValueCompare) then
+    Result := fOnValueCompare(aValue1, aValue2)
+  else
+    Result := 0;
+end;
+
+procedure TConstraintNullableValue<T>.DoValueChanged;
+begin
+  if Assigned(fOnValueChanged) then
+    fOnValueChanged(Self);
+end;
+
+procedure TConstraintNullableValue<T>.DoValueRead;
+begin
+  if Assigned(fOnValueRead) then
+    fOnValueRead(Self);
 end;
 
 end.

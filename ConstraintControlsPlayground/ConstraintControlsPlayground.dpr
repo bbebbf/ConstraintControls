@@ -2,8 +2,7 @@ program ConstraintControlsPlayground;
 
 uses
   Vcl.Forms,
-  unTestPlayground in 'unTestPlayground.pas' {fmTestPlayground},
-  unTestDialog in 'unTestDialog.pas' {fmTestDialog};
+  unTestPlayground in 'unTestPlayground.pas' {fmTestPlayground};
 
 {$R *.res}
 

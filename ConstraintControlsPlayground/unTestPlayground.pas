@@ -4,12 +4,13 @@ interface
 
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
-  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls;
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ComCtrls, ConstraintControls.ConstraintEdit,
+  ConstraintControls.IntegerEdit;
 
 type
   TfmTestPlayground = class(TForm)
     btOpenDialog: TButton;
-    procedure btOpenDialogClick(Sender: TObject);
+    IntegerEdit1: TIntegerEdit;
   private
     { Private-Deklarationen }
   public
@@ -22,17 +23,5 @@ var
 implementation
 
 {$R *.dfm}
-
-uses unTestDialog;
-
-procedure TfmTestPlayground.btOpenDialogClick(Sender: TObject);
-begin
-  var lDialog := TfmTestDialog.Create(Self);
-  try
-    lDialog.ShowModal;
-  finally
-    lDialog.Free;
-  end;
-end;
 
 end.

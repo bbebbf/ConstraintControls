@@ -12,12 +12,18 @@ object fmTestPlayground: TfmTestPlayground
   Font.Style = []
   TextHeight = 15
   object btOpenDialog: TButton
-    Left = 200
-    Top = 88
+    Left = 8
+    Top = 24
     Width = 75
     Height = 25
     Caption = 'OpenDialog'
     TabOrder = 0
-    OnClick = btOpenDialogClick
+  end
+  object IntegerEdit1: TIntegerEdit
+    Left = 216
+    Top = 136
+    Width = 121
+    Height = 23
+    TabOrder = 1
   end
 end

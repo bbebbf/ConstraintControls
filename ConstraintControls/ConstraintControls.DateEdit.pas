@@ -18,10 +18,9 @@ type
     destructor Destroy; override;
     function CompareValues(const aValue1, aValue2: TDate): Integer; override;
   published
-    property Value: TDate read GetValue write SetValue;
-    property NotSetValue: TDate read GetNotSetValue write SetNotSetValue;
-    property RangeMinValue: TDate read GetRangeMinValue write SetRangeMinValue;
-    property RangeMaxValue: TDate read GetRangeMaxValue write SetRangeMaxValue;
+//    property Value:  TConstraintNullableValue<TDate> read GetValue;
+//    property RangeMinValue: TDate read GetRangeMinValue write SetRangeMinValue;
+//    property RangeMaxValue: TDate read GetRangeMaxValue write SetRangeMaxValue;
   end;
 
 implementation

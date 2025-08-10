@@ -132,10 +132,6 @@
             <Form>fmTestPlayground</Form>
             <FormType>dfm</FormType>
         </DCCReference>
-        <DCCReference Include="unTestDialog.pas">
-            <Form>fmTestDialog</Form>
-            <FormType>dfm</FormType>
-        </DCCReference>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

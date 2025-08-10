@@ -29,8 +29,8 @@ object fmTestDialog: TfmTestDialog
     ModalResult = 2
     TabOrder = 1
   end
-  object DateEdit1: TDateEdit
-    Left = 128
+  object IntegerEdit1: TIntegerEdit
+    Left = 112
     Top = 104
     Width = 121
     Height = 23

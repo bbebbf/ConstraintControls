@@ -11,7 +11,7 @@ type
   TfmTestDialog = class(TForm)
     btCorfirm: TButton;
     btCancel: TButton;
-    DateEdit1: TDateEdit;
+    IntegerEdit1: TIntegerEdit;
   private
     { Private-Deklarationen }
   public

@@ -5,8 +5,17 @@ interface
 uses System.Classes, ConstraintControls.ConstraintEdit;
 
 type
+  TIntegerEditValue = class(TConstraintNullableValue<Int64>)
+  published
+    property Value: Int64 read GetValue write SetValue default 0;
+    property NullValue: Int64 read GetNullValue write SetNullValue default 0;
+  end;
+
   TIntegerEdit = class(TConstraintEdit<Int64>)
+  strict private
+    function GetValue(const aIndex: TConstraintEditValueType): TIntegerEditValue;
   strict protected
+    class function CreateValueInstance: TConstraintNullableValue<Int64>; override;
     function GetValueText(const aValue: Int64): string; override;
     function IsInputValid(const aInputData: TInputValidationData): TValidationResult<Int64>; override;
     function IsTextValid(const aText: string): TValidationResult<Int64>; override;
@@ -14,10 +23,9 @@ type
   public
     function CompareValues(const aValue1, aValue2: Int64): Integer; override;
   published
-    property Value: Int64 read GetValue write SetValue default 0;
-    property NotSetValue: Int64 read GetNotSetValue write SetNotSetValue default 0;
-    property RangeMinValue: Int64 read GetRangeMinValue write SetRangeMinValue default 0;
-    property RangeMaxValue: Int64 read GetRangeMaxValue write SetRangeMaxValue default 0;
+    property Value: TIntegerEditValue index TConstraintEditValueType.vtValue read GetValue;
+    property RangeMin: TIntegerEditValue index TConstraintEditValueType.vtRangeMin read GetValue;
+    property RangeMax: TIntegerEditValue index TConstraintEditValueType.vtRangeMax read GetValue;
   end;
 
 implementation
@@ -50,6 +58,16 @@ begin
   end;
 end;
 
+class function TIntegerEdit.CreateValueInstance: TConstraintNullableValue<Int64>;
+begin
+  Result := TIntegerEditValue.Create;
+end;
+
+function TIntegerEdit.GetValue(const aIndex: TConstraintEditValueType): TIntegerEditValue;
+begin
+  Result := GetValueInstance(aIndex) as TIntegerEditValue;
+end;
+
 function TIntegerEdit.GetValueText(const aValue: Int64): string;
 begin
   Result := IntToStr(aValue);
@@ -69,13 +87,13 @@ begin
   Result := default(TValidationResult<Int64>);
   if CompareStr(aInputData.TextToValidate, '-') = 0 then
   begin
-    if RangeMinValueSet and (RangeMinValue >= 0) then
+    if not RangeMin.Null and (RangeMin.Value >= 0) then
     begin
       IsValueWithinBounds(-1, False, Result);
       Exit;
     end;
-  end;
-  if not TryStrToInt64(aInputData.TextToValidate, Result.NewValue) then
+  end
+  else if not TryStrToInt64(aInputData.TextToValidate, Result.NewValue) then
     Exit;
 
   Result.IsValid := True;
