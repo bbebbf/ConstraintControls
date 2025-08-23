@@ -2,7 +2,7 @@ unit ConstraintControls.DateTools;
 
 interface
 
-uses System.SysUtils;
+uses System.SysUtils, SimpleDate;
 
 type
   TDateFormat = record
@@ -31,20 +31,25 @@ type
     class function TryStrToWord(const aStr: string; out aValue: Word): Boolean;
     class function AddAsWord(const aValue: Word; const aDigitChar: Char): Word;
     class function ReadDateFormat(const aText: string; const aDateSeparator: Char): TDateFormat;
-    class function TryToParseDateInternal(const aText: string; const aIsCompleteParse: Boolean;
-      const aFormatSettings: TFormatSettings; out aDate: TDate): Boolean;
-    class function TestCandidate(const aCandidate: TDateCandidate; const aIsCompleteParse: Boolean;
-      out aDate: TDate): Boolean;
-    class function TestByPattern(const aTextDate: TDateFormat; const aIsCompleteParse: Boolean;
-      const aDatePartOrder: TDatePartOrder; out aDate: TDate): Boolean;
-    class function TestBySeparator(const aTextDate: TDateFormat; const aIsCompleteParse: Boolean;
-      const aDatePartOrder: TDatePartOrder; out aDate: TDate): Boolean;
+    class function TryToParseDateInternal(const aText: string; const aIsCompleteParse, aOptionalYear: Boolean;
+      const aFormatSettings: TFormatSettings; out aDate: TSimpleDate): Boolean;
+    class function TestCandidate(const aCandidate: TDateCandidate; const aIsCompleteParse, aOptionalYear: Boolean;
+      out aDate: TSimpleDate): Boolean;
+    class function TestByPattern(const aTextDate: TDateFormat; const aIsCompleteParse, aOptionalYear: Boolean;
+      const aDatePartOrder: TDatePartOrder; out aDate: TSimpleDate): Boolean;
+    class function TestBySeparator(const aTextDate: TDateFormat; const aIsCompleteParse, aOptionalYear: Boolean;
+      const aDatePartOrder: TDatePartOrder; out aDate: TSimpleDate): Boolean;
   public
     class function TryToParseDate(const aText: string; out aDate: TDate): Boolean; overload;
     class function TryToParseDate(const aText: string; const aFormatSettings: TFormatSettings;
       out aDate: TDate): Boolean; overload;
-    class function InputTextMatchesDate(const aInputText: string): Boolean; overload;
-    class function InputTextMatchesDate(const aInputText: string; const aFormatSettings: TFormatSettings): Boolean; overload;
+    class function TryToParseSimpleDate(const aText: string; const aOptionalYear: Boolean;
+      out aDate: TSimpleDate): Boolean; overload;
+    class function TryToParseSimpleDate(const aText: string; const aOptionalYear: Boolean; const aFormatSettings: TFormatSettings;
+      out aDate: TSimpleDate): Boolean; overload;
+    class function InputTextMatchesDate(const aInputText: string; const aOptionalYear: Boolean): Boolean; overload;
+    class function InputTextMatchesDate(const aInputText: string; const aOptionalYear: Boolean;
+      const aFormatSettings: TFormatSettings): Boolean; overload;
   end;
 
 implementation
@@ -63,25 +68,47 @@ end;
 class function TDateTools.TryToParseDate(const aText: string; const aFormatSettings: TFormatSettings;
   out aDate: TDate): Boolean;
 begin
-  Result := TryToParseDateInternal(aText, True, aFormatSettings, aDate);
+  Result := False;
+  aDate := default(TDate);
+  var lSimpleDate: TSimpleDate;
+  if TryToParseDateInternal(aText, True, False, aFormatSettings, lSimpleDate) then
+  begin
+    if lSimpleDate.TryAsDate(aDate) then
+    begin
+      Result := True;
+    end;
+  end;
 end;
 
-class function TDateTools.InputTextMatchesDate(const aInputText: string): Boolean;
+class function TDateTools.TryToParseSimpleDate(const aText: string; const aOptionalYear: Boolean; out aDate: TSimpleDate): Boolean;
 begin
   var lSettings := TFormatSettings.Create;
-  Result := InputTextMatchesDate(aInputText, lSettings);
+  Result := TryToParseSimpleDate(aText, aOptionalYear, lSettings, aDate);
 end;
 
-class function TDateTools.InputTextMatchesDate(const aInputText: string; const aFormatSettings: TFormatSettings): Boolean;
+class function TDateTools.TryToParseSimpleDate(const aText: string; const aOptionalYear: Boolean; const aFormatSettings: TFormatSettings;
+  out aDate: TSimpleDate): Boolean;
 begin
-  var lDate: TDate;
-  Result := TryToParseDateInternal(aInputText, False, aFormatSettings, lDate);
+  Result := TryToParseDateInternal(aText, True, aOptionalYear, aFormatSettings, aDate);
 end;
 
-class function TDateTools.TryToParseDateInternal(const aText: string; const aIsCompleteParse: Boolean;
-  const aFormatSettings: TFormatSettings; out aDate: TDate): Boolean;
+class function TDateTools.InputTextMatchesDate(const aInputText: string; const aOptionalYear: Boolean): Boolean;
 begin
-  aDate := default(TDate);
+  var lSettings := TFormatSettings.Create;
+  Result := InputTextMatchesDate(aInputText, aOptionalYear, lSettings);
+end;
+
+class function TDateTools.InputTextMatchesDate(const aInputText: string; const aOptionalYear: Boolean;
+  const aFormatSettings: TFormatSettings): Boolean;
+begin
+  var lDate: TSimpleDate;
+  Result := TryToParseDateInternal(aInputText, False, aOptionalYear, aFormatSettings, lDate);
+end;
+
+class function TDateTools.TryToParseDateInternal(const aText: string; const aIsCompleteParse, aOptionalYear: Boolean;
+  const aFormatSettings: TFormatSettings; out aDate: TSimpleDate): Boolean;
+begin
+  aDate := default(TSimpleDate);
   var lDateFormat := ReadDateFormat(aText, aFormatSettings.DateSeparator);
   if not lDateFormat.IsValid then
     Exit(False);
@@ -89,19 +116,19 @@ begin
   var lDatePartOrder := GetDatePartOrder(aFormatSettings);
   if lDateFormat.SeparatorCount > 0 then
   begin
-    Result := TestBySeparator(lDateFormat, aIsCompleteParse, lDatePartOrder, aDate);
+    Result := TestBySeparator(lDateFormat, aIsCompleteParse, aOptionalYear, lDatePartOrder, aDate);
   end
   else
   begin
-    Result := TestByPattern(lDateFormat, aIsCompleteParse, lDatePartOrder, aDate);
+    Result := TestByPattern(lDateFormat, aIsCompleteParse, aOptionalYear, lDatePartOrder, aDate);
   end;
 end;
 
-class function TDateTools.TestBySeparator(const aTextDate: TDateFormat; const aIsCompleteParse: Boolean;
-  const aDatePartOrder: TDatePartOrder; out aDate: TDate): Boolean;
+class function TDateTools.TestBySeparator(const aTextDate: TDateFormat; const aIsCompleteParse, aOptionalYear: Boolean;
+  const aDatePartOrder: TDatePartOrder; out aDate: TSimpleDate): Boolean;
 begin
   Result := False;
-  aDate := default(TDate);
+  aDate := default(TSimpleDate);
   var lSeparatedPartsLen := Length(aTextDate.SeparatedParts);
   if not aIsCompleteParse and (lSeparatedPartsLen < 3) then
     Exit(True);
@@ -140,15 +167,15 @@ begin
   if lYearsIdx < lSeparatedPartsLen then
     if not TryStrToWord(aTextDate.SeparatedParts[lYearsIdx], lCandidate.Year) then
       lCandidate.Year := 0;
-  if TestCandidate(lCandidate, aIsCompleteParse, aDate) then
+  if TestCandidate(lCandidate, aIsCompleteParse, aOptionalYear, aDate) then
     Exit(True);
 end;
 
-class function TDateTools.TestByPattern(const aTextDate: TDateFormat; const aIsCompleteParse: Boolean;
-  const aDatePartOrder: TDatePartOrder; out aDate: TDate): Boolean;
+class function TDateTools.TestByPattern(const aTextDate: TDateFormat; const aIsCompleteParse, aOptionalYear: Boolean;
+  const aDatePartOrder: TDatePartOrder; out aDate: TSimpleDate): Boolean;
 begin
   Result := False;
-  aDate := default(TDate);
+  aDate := default(TSimpleDate);
   if not aIsCompleteParse and (aTextDate.TextLength < 4) then
     Exit(True);
 
@@ -190,19 +217,18 @@ begin
       end;
     end;
     lCandidate.Incomplete := aTextDate.TextLength < lPatternLength;
-    if TestCandidate(lCandidate, aIsCompleteParse, aDate) then
+    if TestCandidate(lCandidate, aIsCompleteParse, aOptionalYear, aDate) then
       Exit(True);
   end;
 end;
 
-class function TDateTools.TestCandidate(const aCandidate: TDateCandidate; const aIsCompleteParse: Boolean;
-  out aDate: TDate): Boolean;
+class function TDateTools.TestCandidate(const aCandidate: TDateCandidate; const aIsCompleteParse, aOptionalYear: Boolean;
+  out aDate: TSimpleDate): Boolean;
 begin
   Result := False;
-  aDate := default(TDate);
+  aDate := default(TSimpleDate);
 
   var lNow := Now;
-  var lDateTime: TDateTime;
   var lMonth := aCandidate.Month;
   if aCandidate.Incomplete then
   begin
@@ -221,17 +247,34 @@ begin
   end
   else
   begin
-    var lYear := aCandidate.Year;
-    if lYear = 0 then
-      lYear := YearOf(lNow)
-    else
-      lYear := GetCompleteYear(lYear);
     if lMonth = 0 then
       lMonth := MonthOf(lNow);
-    if TryEncodeDate(lYear, lMonth, aCandidate.Day, lDateTime) then
+
+    var lYear := aCandidate.Year;
+    if aOptionalYear and (lYear = 0) then
     begin
-      aDate := lDateTime;
-      Exit(True);
+      lYear := 2000;
+      var lDateTime: TDateTime;
+      if TryEncodeDate(lYear, lMonth, aCandidate.Day, lDateTime) then
+      begin
+        aDate.Year := 0;
+        aDate.Month := lMonth;
+        aDate.Day := aCandidate.Day;
+        Exit(True);
+      end;
+    end
+    else
+    begin
+      if lYear = 0 then
+        lYear := YearOf(lNow)
+      else
+        lYear := GetCompleteYear(lYear);
+      var lDateTime: TDateTime;
+      if TryEncodeDate(lYear, lMonth, aCandidate.Day, lDateTime) then
+      begin
+        aDate := lDateTime;
+        Exit(True);
+      end;
     end;
   end;
 end;

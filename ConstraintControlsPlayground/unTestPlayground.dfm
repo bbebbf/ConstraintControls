@@ -11,19 +11,20 @@ object fmTestPlayground: TfmTestPlayground
   Font.Name = 'Segoe UI'
   Font.Style = []
   TextHeight = 15
-  object btOpenDialog: TButton
-    Left = 8
-    Top = 24
-    Width = 75
-    Height = 25
-    Caption = 'OpenDialog'
-    TabOrder = 0
-  end
-  object IntegerEdit1: TIntegerEdit
-    Left = 216
-    Top = 136
+  object DateEdit1: TDateEdit
+    Left = 144
+    Top = 72
     Width = 121
     Height = 23
+    TabOrder = 0
+  end
+  object cbOptionalYear: TCheckBox
+    Left = 144
+    Top = 152
+    Width = 97
+    Height = 17
+    Caption = 'Optional Year'
     TabOrder = 1
+    OnClick = cbOptionalYearClick
   end
 end

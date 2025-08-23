@@ -37,6 +37,7 @@ contains
   ConstraintControls.IntegerEdit in 'ConstraintControls.IntegerEdit.pas',
   ConstraintControls.Registration in 'ConstraintControls.Registration.pas',
   ConstraintControls.DateEdit in 'ConstraintControls.DateEdit.pas',
-  ConstraintControls.DateTools in 'ConstraintControls.DateTools.pas';
+  ConstraintControls.DateTools in 'ConstraintControls.DateTools.pas',
+  SimpleDate in 'SimpleDate.pas';
 
 end.

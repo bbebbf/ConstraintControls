@@ -21,6 +21,20 @@ type
     [TestCase('141414', '141414,1.4.1414')]
     procedure TryToParseDateTestCompleteSuccededDate(const aInputText: string; const aDate: TDate);
 
+    [TestCase('1234567', '1234567,12,03,4567')]
+    [TestCase('141414', '141414,1,4,1414')]
+    [TestCase('1.4.1414', '1.4.1414,1,4,1414')]
+    procedure TryToParseSimpleDateTestCompleteSuccededDate(const aInputText: string; const aDay, aMonth, aYear: Word);
+
+    [TestCase('1234567', '1234567,12,3,4567')]
+    [TestCase('141414', '141414,1,4,1414')]
+    [TestCase('1.4.1414', '1.4.1414,1,4,1414')]
+    [TestCase('123', '123,12,3,0')]
+    [TestCase('32', '32,3,2,0')]
+    [TestCase('1.4', '1.4,1,4,0')]
+    [TestCase('1.4.', '1.4,1,4,0')]
+    procedure TryToParseSimpleDateOptionalYearTestCompleteSuccededDate(const aInputText: string; const aDay, aMonth, aYear: Word);
+
     procedure TryToParseDateTestCompleteFailed(const aInputText: string);
 
     [TestCase('1', '1')]
@@ -34,9 +48,25 @@ type
     [TestCase('99999', '99999')]
     procedure InputTextMatchesDateSucceeds(const aInputText: string);
 
+    [TestCase('1', '1')]
+    [TestCase('12', '12')]
+    [TestCase('999', '999')]
+    [TestCase('1239', '1239')]
+    [TestCase('23.', '23.')]
+    [TestCase('1.2', '1.2')]
+    [TestCase('1.2.39', '1.2.39')]
+    [TestCase('1234567', '1234567')]
+    [TestCase('99999', '99999')]
+    [TestCase('1.2.', '1.2.')]
+    procedure InputTextMatchesDateOptionalYearSucceeds(const aInputText: string);
+
     [TestCase('.14', '.14')]
     [TestCase('.12', '.12')]
     procedure InputTextMatchesDateFails(const aInputText: string);
+
+    [TestCase('.14', '.14')]
+    [TestCase('.12', '.12')]
+    procedure InputTextMatchesDateOptionalYearFails(const aInputText: string);
 
     [TestCase('1', '1')]
     [TestCase('12', '12')]
@@ -67,7 +97,7 @@ type
 
 implementation
 
-uses System.DateUtils, ConstraintControls.DateTools;
+uses System.DateUtils, ConstraintControls.DateTools, SimpleDate;
 
 { TDateToolsTests }
 
@@ -91,6 +121,28 @@ begin
   Assert.IsTrue(CompareDate(aDate, lDate) = 0, 'Wrong date.');
 end;
 
+procedure TDateToolsTests.TryToParseSimpleDateTestCompleteSuccededDate(const aInputText: string; const aDay, aMonth,
+  aYear: Word);
+begin
+  var lDate: TSimpleDate;
+  Assert.IsTrue(TDateTools.TryToParseSimpleDate(aInputText, False, fFormatSettings, lDate),
+    'aInputText "' + aInputText + '" is invalid.');
+  Assert.IsTrue(aDay = lDate.Day, 'Wrong day ' + IntToStr(lDate.Day) + ' in date. ' + IntToStr(aDay) + ' expected.');
+  Assert.IsTrue(aMonth = lDate.Month, 'Wrong month ' + IntToStr(lDate.Month) + ' in date. ' + IntToStr(aMonth) + ' expected.');
+  Assert.IsTrue(aYear = lDate.Year, 'Wrong year ' + IntToStr(lDate.Year) + ' in date. ' + IntToStr(aYear) + ' expected.');
+end;
+
+procedure TDateToolsTests.TryToParseSimpleDateOptionalYearTestCompleteSuccededDate(const aInputText: string; const aDay, aMonth,
+  aYear: Word);
+begin
+  var lDate: TSimpleDate;
+  Assert.IsTrue(TDateTools.TryToParseSimpleDate(aInputText, True, fFormatSettings, lDate),
+    'aInputText "' + aInputText + '" is invalid.');
+  Assert.IsTrue(aDay = lDate.Day, 'Wrong day ' + IntToStr(lDate.Day) + ' in date. ' + IntToStr(aDay) + ' expected.');
+  Assert.IsTrue(aMonth = lDate.Month, 'Wrong month ' + IntToStr(lDate.Month) + ' in date. ' + IntToStr(aMonth) + ' expected.');
+  Assert.IsTrue(aYear = lDate.Year, 'Wrong year ' + IntToStr(lDate.Year) + ' in date. ' + IntToStr(aYear) + ' expected.');
+end;
+
 procedure TDateToolsTests.TryToParseDateTestCompleteFailed(const aInputText: string);
 begin
   var lDate: TDate;
@@ -100,13 +152,25 @@ end;
 
 procedure TDateToolsTests.InputTextMatchesDateSucceeds(const aInputText: string);
 begin
-  Assert.IsTrue(TDateTools.InputTextMatchesDate(aInputText, fFormatSettings),
+  Assert.IsTrue(TDateTools.InputTextMatchesDate(aInputText, False, fFormatSettings),
+    'aInputText "' + aInputText + '" is invalid.');
+end;
+
+procedure TDateToolsTests.InputTextMatchesDateOptionalYearSucceeds(const aInputText: string);
+begin
+  Assert.IsTrue(TDateTools.InputTextMatchesDate(aInputText, True, fFormatSettings),
     'aInputText "' + aInputText + '" is invalid.');
 end;
 
 procedure TDateToolsTests.InputTextMatchesDateFails(const aInputText: string);
 begin
-  Assert.IsFalse(TDateTools.InputTextMatchesDate(aInputText, fFormatSettings),
+  Assert.IsFalse(TDateTools.InputTextMatchesDate(aInputText, False, fFormatSettings),
+    'aInputText "' + aInputText + '" is valid.');
+end;
+
+procedure TDateToolsTests.InputTextMatchesDateOptionalYearFails(const aInputText: string);
+begin
+  Assert.IsFalse(TDateTools.InputTextMatchesDate(aInputText, False, fFormatSettings),
     'aInputText "' + aInputText + '" is valid.');
 end;
 
@@ -122,7 +186,7 @@ end;
 
 procedure TDateToolsTests.InputTextMatchesTryParseFails(const aInputText: string);
 begin
-  var lParsedSuccessfully := TDateTools.InputTextMatchesDate(aInputText, fFormatSettings);
+  var lParsedSuccessfully := TDateTools.InputTextMatchesDate(aInputText, False, fFormatSettings);
   if not lParsedSuccessfully then
     TryToParseDateTestCompleteFailed(aInputText)
   else

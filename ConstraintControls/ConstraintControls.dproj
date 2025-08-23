@@ -108,6 +108,7 @@
         <DCCReference Include="ConstraintControls.Registration.pas"/>
         <DCCReference Include="ConstraintControls.DateEdit.pas"/>
         <DCCReference Include="ConstraintControls.DateTools.pas"/>
+        <DCCReference Include="SimpleDate.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

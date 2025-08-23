@@ -14,23 +14,25 @@ type
   TIntegerEdit = class(TConstraintEdit<Int64>)
   strict private
     function GetValue(const aIndex: TConstraintEditValueType): TIntegerEditValue;
+    procedure SetValue(const aIndex: TConstraintEditValueType; const aValue: TIntegerEditValue);
   strict protected
-    class function CreateValueInstance: TConstraintNullableValue<Int64>; override;
+    function CreateValueInstance: TConstraintNullableValue<Int64>; override;
     function GetValueText(const aValue: Int64): string; override;
     function IsInputValid(const aInputData: TInputValidationData): TValidationResult<Int64>; override;
     function IsTextValid(const aText: string): TValidationResult<Int64>; override;
+    procedure EvaluateBounds(const aPartialInput: Boolean; var aValidationResult: TValidationResult<Int64>); override;
     function GetValidationDefaultMessage(const aKind: TValidationMessageKind): TValidationMessage; override;
   public
     function CompareValues(const aValue1, aValue2: Int64): Integer; override;
   published
-    property Value: TIntegerEditValue index TConstraintEditValueType.vtValue read GetValue;
-    property RangeMin: TIntegerEditValue index TConstraintEditValueType.vtRangeMin read GetValue;
-    property RangeMax: TIntegerEditValue index TConstraintEditValueType.vtRangeMax read GetValue;
+    property Value: TIntegerEditValue index TConstraintEditValueType.vtValue read GetValue write SetValue;
+    property BoundsLower: TIntegerEditValue index TConstraintEditValueType.vtBoundsLower read GetValue write SetValue;
+    property BoundsUpper: TIntegerEditValue index TConstraintEditValueType.vtBoundsUpper read GetValue write SetValue;
   end;
 
 implementation
 
-uses System.SysUtils;
+uses System.SysUtils, System.Math;
 
 { TIntegerEdit }
 
@@ -58,14 +60,25 @@ begin
   end;
 end;
 
-class function TIntegerEdit.CreateValueInstance: TConstraintNullableValue<Int64>;
+function TIntegerEdit.CreateValueInstance: TConstraintNullableValue<Int64>;
 begin
-  Result := TIntegerEditValue.Create;
+  Result := TIntegerEditValue.Create(Self);
 end;
 
 function TIntegerEdit.GetValue(const aIndex: TConstraintEditValueType): TIntegerEditValue;
 begin
-  Result := GetValueInstance(aIndex) as TIntegerEditValue;
+  const Instance = GetValueInstance(aIndex);
+  if Assigned(Instance) then
+    Result := Instance as TIntegerEditValue
+  else
+    Result := nil;
+end;
+
+procedure TIntegerEdit.SetValue(const aIndex: TConstraintEditValueType; const aValue: TIntegerEditValue);
+begin
+  const Instance = GetValueInstance(aIndex);
+  if Assigned(Instance) then
+    Instance.Assign(aValue);
 end;
 
 function TIntegerEdit.GetValueText(const aValue: Int64): string;
@@ -87,9 +100,12 @@ begin
   Result := default(TValidationResult<Int64>);
   if CompareStr(aInputData.TextToValidate, '-') = 0 then
   begin
-    if not RangeMin.Null and (RangeMin.Value >= 0) then
+    if not BoundsLower.Null and (BoundsLower.Value >= 0) then
     begin
-      IsValueWithinBounds(-1, False, Result);
+      Result.NewValue := -1;
+      IsValueWithinBounds(True, Result);
+      Result.InvalidHintTitle := 'Negative Werte sind nicht zugelassen';
+      Result.CustomInvalidHintSet := True;
       Exit;
     end;
   end
@@ -106,6 +122,24 @@ begin
     Exit;
 
   Result.IsValid := True;
+end;
+
+procedure TIntegerEdit.EvaluateBounds(const aPartialInput: Boolean; var aValidationResult: TValidationResult<Int64>);
+begin
+  if aValidationResult.IsValid then
+    Exit;
+  if not aPartialInput then
+    Exit;
+  if aValidationResult.BoundaryCheckResult = TBoundaryCheckResult.ValueTooHigh then
+    Exit;
+
+  if aValidationResult.BoundaryCheckResult = TBoundaryCheckResult.ValueTooLow then
+  begin
+    if Sign(aValidationResult.NewValue) <> Sign(BoundsUpper.Value) then
+      Exit;
+  end;
+
+  aValidationResult.IsValid := True;
 end;
 
 end.

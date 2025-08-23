@@ -5,12 +5,13 @@ interface
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.ComCtrls, ConstraintControls.ConstraintEdit,
-  ConstraintControls.IntegerEdit;
+  ConstraintControls.IntegerEdit, ConstraintControls.DateEdit;
 
 type
   TfmTestPlayground = class(TForm)
-    btOpenDialog: TButton;
-    IntegerEdit1: TIntegerEdit;
+    DateEdit1: TDateEdit;
+    cbOptionalYear: TCheckBox;
+    procedure cbOptionalYearClick(Sender: TObject);
   private
     { Private-Deklarationen }
   public
@@ -23,5 +24,10 @@ var
 implementation
 
 {$R *.dfm}
+
+procedure TfmTestPlayground.cbOptionalYearClick(Sender: TObject);
+begin
+  DateEdit1.OptionalYear := cbOptionalYear.Checked;
+end;
 
 end.
