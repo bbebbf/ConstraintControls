@@ -253,7 +253,9 @@ begin
     var lYear := aCandidate.Year;
     if aOptionalYear and (lYear = 0) then
     begin
-      lYear := 2000;
+      const LeapYearExample = 2024;
+      // If no year is set we need to test day and month with a leap year example.
+      lYear := LeapYearExample;
       var lDateTime: TDateTime;
       if TryEncodeDate(lYear, lMonth, aCandidate.Day, lDateTime) then
       begin

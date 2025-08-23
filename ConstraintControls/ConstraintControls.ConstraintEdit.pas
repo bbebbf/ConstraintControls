@@ -118,6 +118,7 @@ type
     fBoundsUpper: TConstraintNullableValue<T>;
     fUserValidationMessages: TValidationMessages;
     fInvalidHint: TBalloonHint;
+    fUpdateValueTextSuspended: Boolean;
     fExitOnInvalidValue: Boolean;
     fOnExitQueryValidation: TOnExitQueryValidation<T>;
 
@@ -328,7 +329,7 @@ end;
 
 procedure TConstraintEdit<T>.OnValueChangedUpdateText(const aSender: TConstraintNullableValue<T>);
 begin
-  if ComponentState * [csLoading] <> [] then
+  if fUpdateValueTextSuspended or (ComponentState * [csLoading] <> []) then
     Exit;
   if aSender.Null then
     SetInheritedText(GetNoValueText)
@@ -361,11 +362,7 @@ end;
 
 procedure TConstraintEdit<T>.OnValueReadValidate(const aSender: TConstraintNullableValue<T>);
 begin
-  var lValidationResult := IsTextValidInternal(False);
-  if not lValidationResult.IsValid then
-  begin
-    fValue.Null := True;
-  end;
+  IsTextValidInternal(False);
 end;
 
 procedure TConstraintEdit<T>.Clear;
@@ -627,13 +624,18 @@ begin
     begin
       lValidationResult.ValidationNotRequired := True;
     end;
-    if lValueValidated then
-    begin
-      fValue.Value := lValidationResult.NewValue;
-    end
-    else
-    begin
-      fValue.Null := True;
+    try
+      fUpdateValueTextSuspended := not aOnExit;
+      if lValueValidated then
+      begin
+        fValue.Value := lValidationResult.NewValue;
+      end
+      else
+      begin
+        fValue.Null := True;
+      end;
+    finally
+      fUpdateValueTextSuspended := False;
     end;
     if aOnExit and not lValidationResult.ValidationNotRequired then
     begin

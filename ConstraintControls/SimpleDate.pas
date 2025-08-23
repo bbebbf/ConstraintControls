@@ -74,7 +74,9 @@ begin
   end
   else
   begin
-    if TryEncodeDate(2024, fMonth, fDay, lDate) then
+    const LeapYearExample = 2024;
+    // If no year is set we need to test day and month with a leap year example.
+    if TryEncodeDate(LeapYearExample, fMonth, fDay, lDate) then
       Exit(True);
   end;
 end;
