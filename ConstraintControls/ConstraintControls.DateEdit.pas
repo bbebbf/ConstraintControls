@@ -22,7 +22,6 @@ type
   TDateEdit = class(TConstraintEdit<TSimpleDate>)
   strict private
     fFormatSettings: TFormatSettings;
-    fShortDateFormatWithoutYear: string;
     fOptionalYear: Boolean;
     function GetValue(const aIndex: TConstraintEditValueType): TDateEditValue;
     procedure SetValue(const aIndex: TConstraintEditValueType; const aValue: TDateEditValue);
@@ -40,6 +39,7 @@ type
     property Value: TDateEditValue index TConstraintEditValueType.vtValue read GetValue write SetValue;
     property BoundsLower: TDateEditValue index TConstraintEditValueType.vtBoundsLower read GetValue write SetValue;
     property BoundsUpper: TDateEditValue index TConstraintEditValueType.vtBoundsUpper read GetValue write SetValue;
+    property OnExitQueryValidation: TOnExitQueryValidation<TSimpleDate> read fOnExitQueryValidation write fOnExitQueryValidation;
   end;
 
 implementation
@@ -52,9 +52,6 @@ constructor TDateEdit.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
   fFormatSettings := TFormatSettings.Create;
-
-  fShortDateFormatWithoutYear := StringReplace(fFormatSettings.ShortDateFormat, 'y', '', [TReplaceFlag.rfReplaceAll]);
-  fShortDateFormatWithoutYear := StringReplace(fShortDateFormatWithoutYear, '//', '/', [TReplaceFlag.rfReplaceAll]);
 end;
 
 function TDateEdit.GetValidationDefaultMessage(const aKind: TValidationMessageKind): TValidationMessage;
@@ -68,6 +65,8 @@ begin
       Result.ValidationMessage := 'Unzulässig';
     TValidationMessageKind.InvalidValueHint:
       Result.ValidationMessage := '"#t" ist kein gültiges Datum.';
+    TValidationMessageKind.EmptyValueHint:
+      Result.ValidationMessage := 'Das Datum muss angegeben sein.';
     TValidationMessageKind.ValueTooLowTitle:
       Result.ValidationMessage := 'Zu niedrig';
     TValidationMessageKind.ValueTooLowHint:
@@ -98,22 +97,7 @@ end;
 
 function TDateEdit.GetValueText(const aValue: TSimpleDate): string;
 begin
-  if aValue.Year = 0 then
-  begin
-    var lDate: TDateTime;
-    if TryEncodeDate(2000, aValue.Month, aValue.Day, lDate) then
-    begin
-      Result := FormatDateTime(fShortDateFormatWithoutYear, lDate, fFormatSettings);
-    end
-    else
-    begin
-      Result := '???';
-    end;
-  end
-  else
-  begin
-    Result := FormatDateTime('ddddd', aValue.AsDate, fFormatSettings);
-  end;
+  Result := TDateTools.SimpleDateToStr(aValue, fFormatSettings);
 end;
 
 function TDateEdit.CompareValues(const aValue1, aValue2: TSimpleDate): Integer;

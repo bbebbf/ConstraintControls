@@ -38,6 +38,9 @@ type
     property Day: TDayRange read fDay write SetDay;
   end;
 
+const
+  SimpleDateLeapYearExample = 2024;
+
 implementation
 
 uses System.DateUtils;
@@ -74,9 +77,8 @@ begin
   end
   else
   begin
-    const LeapYearExample = 2024;
     // If no year is set we need to test day and month with a leap year example.
-    if TryEncodeDate(LeapYearExample, fMonth, fDay, lDate) then
+    if TryEncodeDate(SimpleDateLeapYearExample, fMonth, fDay, lDate) then
       Exit(True);
   end;
 end;

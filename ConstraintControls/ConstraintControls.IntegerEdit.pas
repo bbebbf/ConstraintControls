@@ -47,6 +47,8 @@ begin
       Result.ValidationMessage := 'Unzulässig';
     TValidationMessageKind.InvalidValueHint:
       Result.ValidationMessage := 'Es sind nur Ziffern erlaubt.';
+    TValidationMessageKind.EmptyValueHint:
+      Result.ValidationMessage := 'Die Zahl muss angegeben sein.';
     TValidationMessageKind.ValueTooLowTitle:
       Result.ValidationMessage := 'Zu niedrig';
     TValidationMessageKind.ValueTooLowHint:

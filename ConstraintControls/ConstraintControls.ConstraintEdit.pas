@@ -40,19 +40,19 @@ type
   TValidationResult<T: record> = record
     NewValue: T;
     IsValid: Boolean;
-    ValidationNotRequired: Boolean;
+    ValidationRequired: Boolean;
     BoundaryCheckResult: TBoundaryCheckResult;
     CustomInvalidHintSet: Boolean;
     InvalidHintTitle: string;
     InvalidHintDescription: string;
   end;
 
-  TOnExitQueryValidation<T: record> = procedure(Sender: TObject; const aValidationResult: TValidationResult<T>;
-    var aValidationRequired: Boolean) of object;
+  TOnExitQueryValidation<T: record> = procedure(Sender: TObject; var aValidationResult: TValidationResult<T>) of object;
 
   TValidationMessageKind = (InvalidInputTitle,
     InvalidTextTitle,
     InvalidValueHint,
+    EmptyValueHint,
     ValueTooLowTitle,
     ValueTooLowHint,
     ValueTooHighTitle,
@@ -94,6 +94,10 @@ type
     procedure SetNull(const aValue: Boolean);
     function GetNullValue: T;
     procedure SetNullValue(const aValue: T);
+  protected
+    property OnValueCompare: TValueCompare<T> read fOnValueCompare write fOnValueCompare;
+    property OnValueChanged: TOnConstraintNullableValueNotifyEvent<T> read fOnValueChanged write fOnValueChanged;
+    property OnValueRead: TOnConstraintNullableValueNotifyEvent<T> read fOnValueRead write fOnValueRead;
   public
     constructor Create(const aOwner: TPersistent);
     destructor Destroy; override;
@@ -104,9 +108,6 @@ type
     property Validated: Boolean read fValidated;
   published
     property Null: Boolean read fNull write SetNull default True;
-    property OnValueCompare: TValueCompare<T> read fOnValueCompare write fOnValueCompare;
-    property OnValueChanged: TOnConstraintNullableValueNotifyEvent<T> read fOnValueChanged write fOnValueChanged;
-    property OnValueRead: TOnConstraintNullableValueNotifyEvent<T> read fOnValueRead write fOnValueRead;
   end;
 
   TConstraintEditValueType = (vtValue, vtBoundsLower, vtBoundsUpper);
@@ -114,18 +115,20 @@ type
   TConstraintEdit<T: record> = class(TCustomEdit)
   strict private
     fValue: TConstraintNullableValue<T>;
+    fLastValueValidationResult: TValidationResult<T>;
+    fLastValueValidationResultSet: Boolean;
     fBoundsLower: TConstraintNullableValue<T>;
     fBoundsUpper: TConstraintNullableValue<T>;
     fUserValidationMessages: TValidationMessages;
     fInvalidHint: TBalloonHint;
     fUpdateValueTextSuspended: Boolean;
-    fExitOnInvalidValue: Boolean;
-    fOnExitQueryValidation: TOnExitQueryValidation<T>;
+    fEmptyValueAllowed: Boolean;
+    fOnValueChanged: TNotifyEvent;
 
-    procedure OnValueChangedUpdateText(const aSender: TConstraintNullableValue<T>);
-    procedure OnBoundsLowerChangedAdjustUpper(const aSender: TConstraintNullableValue<T>);
-    procedure OnBoundsUpperChangedAdjustLower(const aSender: TConstraintNullableValue<T>);
-    procedure OnValueReadValidate(const aSender: TConstraintNullableValue<T>);
+    procedure ValueChanged(const aSender: TConstraintNullableValue<T>);
+    procedure BoundsLowerChangedAdjustUpper(const aSender: TConstraintNullableValue<T>);
+    procedure BoundsUpperChangedAdjustLower(const aSender: TConstraintNullableValue<T>);
+    procedure ValueReadValidate(const aSender: TConstraintNullableValue<T>);
 
     function GetInheritedText: string;
     procedure SetInheritedText(const aValue: string);
@@ -137,10 +140,13 @@ type
     function IsInputValidInternal(const aInputData: TInputValidationData): TValidationResult<T>;
     function IsTextValidInternal(const aOnExit: Boolean): TValidationResult<T>;
     procedure ShowInvalidHint(const aValidationResult: TValidationResult<T>);
+    procedure UpdateValueText;
 
     function ValuesReplaced(const aMessagePart: string;
       const aCurrentText: string; aCurrentValue: T): string;
   strict protected
+    fOnExitQueryValidation: TOnExitQueryValidation<T>;
+
     procedure KeyPress(var Key: Char); override;
     procedure DoExit; override;
 
@@ -155,17 +161,17 @@ type
     function GetValidationDefaultMessage(const aKind: TValidationMessageKind): TValidationMessage; virtual;
     procedure EvaluateBounds(const aPartialInput: Boolean; var aValidationResult: TValidationResult<T>); virtual;
 
-    procedure  DoOnExitQueryValidation(const aValidationResult: TValidationResult<T>;
-      var aValidationRequired: Boolean);
+    procedure  DoOnExitQueryValidation(var aValidationResult: TValidationResult<T>);
 
     function GetFormattedMessage(const aMessage: string; const aValuePlaceholder: Char;
-      const aCurrentText: string; aCurrentValue: T): string;
+      const aCurrentText: string; const aCurrentValue: T): string;
     function GetValidationMessage(const aMessageKind: TValidationMessageKind;
-      const aCurrentText: string; aCurrentValue: T): string;
+      const aCurrentText: string; const aCurrentValue: T): string;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     procedure Clear; override;
+    function ValidateValue: Boolean;
     procedure SetMessageValuePlaceholder(const aValue: Char);
     function CompareValues(const aValue1, aValue2: T): Integer; virtual;
 
@@ -238,8 +244,7 @@ type
     property OnStartDock;
     property OnStartDrag;
 
-    property ExitOnInvalidValue: Boolean read fExitOnInvalidValue write fExitOnInvalidValue default False;
-    property OnExitQueryValidation: TOnExitQueryValidation<T> read fOnExitQueryValidation write fOnExitQueryValidation;
+    property EmptyValueAllowed: Boolean read fEmptyValueAllowed write fEmptyValueAllowed default True;
 
     property MessageValuePlaceholder: Char
       read fUserValidationMessages.ValuePlaceholder
@@ -253,6 +258,9 @@ type
     property MessageInvalidValueHint: string
       read fUserValidationMessages.Messages[TValidationMessageKind.InvalidValueHint]
       write fUserValidationMessages.Messages[TValidationMessageKind.InvalidValueHint];
+    property MessageEmptyValueHint: string
+      read fUserValidationMessages.Messages[TValidationMessageKind.EmptyValueHint]
+      write fUserValidationMessages.Messages[TValidationMessageKind.EmptyValueHint];
     property MessageValueTooLowTitle: string
       read fUserValidationMessages.Messages[TValidationMessageKind.ValueTooLowTitle]
       write fUserValidationMessages.Messages[TValidationMessageKind.ValueTooLowTitle];
@@ -268,6 +276,8 @@ type
     property MessageValueOutOfRangeHint: string
       read fUserValidationMessages.Messages[TValidationMessageKind.ValueOutOfRangeHint]
       write fUserValidationMessages.Messages[TValidationMessageKind.ValueOutOfRangeHint];
+
+    property OnValueChanged: TNotifyEvent read fOnValueChanged write fOnValueChanged;
   end;
 
 const
@@ -285,18 +295,19 @@ begin
   inherited Create(AOwner);
   fValue := CreateValueInstance;
   fValue.OnValueCompare := CompareValues;
-  fValue.OnValueChanged := OnValueChangedUpdateText;
-  fValue.OnValueRead := OnValueReadValidate;
+  fValue.OnValueChanged := ValueChanged;
+  fValue.OnValueRead := ValueReadValidate;
 
   fBoundsLower := CreateValueInstance;
   fBoundsLower.OnValueCompare := CompareValues;
-  fBoundsLower.OnValueChanged := OnBoundsLowerChangedAdjustUpper;
+  fBoundsLower.OnValueChanged := BoundsLowerChangedAdjustUpper;
 
   fBoundsUpper := CreateValueInstance;
   fBoundsUpper.OnValueCompare := CompareValues;
-  fBoundsUpper.OnValueChanged := OnBoundsUpperChangedAdjustLower;
+  fBoundsUpper.OnValueChanged := BoundsUpperChangedAdjustLower;
 
   fUserValidationMessages.ValuePlaceholder := '#';
+  fEmptyValueAllowed := True;
 end;
 
 destructor TConstraintEdit<T>.Destroy;
@@ -327,20 +338,24 @@ begin
   end;
 end;
 
-procedure TConstraintEdit<T>.OnValueChangedUpdateText(const aSender: TConstraintNullableValue<T>);
+function TConstraintEdit<T>.ValidateValue: Boolean;
 begin
-  if fUpdateValueTextSuspended or (ComponentState * [csLoading] <> []) then
-    Exit;
-  if aSender.Null then
-    SetInheritedText(GetNoValueText)
-  else
-  begin
-    var lTempValue := aSender.Value;
-    SetInheritedText(GetValueText(lTempValue));
-  end;
+  var lValidationResult := IsTextValidInternal(False);
+  ShowInvalidHint(lValidationResult);
+  Result := lValidationResult.IsValid;
 end;
 
-procedure TConstraintEdit<T>.OnBoundsLowerChangedAdjustUpper(const aSender: TConstraintNullableValue<T>);
+procedure TConstraintEdit<T>.ValueChanged(const aSender: TConstraintNullableValue<T>);
+begin
+  if ComponentState * [csLoading] <> [] then
+    Exit;
+
+  UpdateValueText;
+  if Assigned(fOnValueChanged) then
+    fOnValueChanged(Self);
+end;
+
+procedure TConstraintEdit<T>.BoundsLowerChangedAdjustUpper(const aSender: TConstraintNullableValue<T>);
 begin
   if ComponentState * [csLoading] <> [] then
     Exit;
@@ -350,7 +365,7 @@ begin
     fBoundsUpper.Value := LowerTempValue;
 end;
 
-procedure TConstraintEdit<T>.OnBoundsUpperChangedAdjustLower(const aSender: TConstraintNullableValue<T>);
+procedure TConstraintEdit<T>.BoundsUpperChangedAdjustLower(const aSender: TConstraintNullableValue<T>);
 begin
   if ComponentState * [csLoading] <> [] then
     Exit;
@@ -360,7 +375,7 @@ begin
     fBoundsLower.Value := UpperTempValue;
 end;
 
-procedure TConstraintEdit<T>.OnValueReadValidate(const aSender: TConstraintNullableValue<T>);
+procedure TConstraintEdit<T>.ValueReadValidate(const aSender: TConstraintNullableValue<T>);
 begin
   IsTextValidInternal(False);
 end;
@@ -372,13 +387,17 @@ begin
 end;
 
 function TConstraintEdit<T>.GetValidationMessage(const aMessageKind: TValidationMessageKind;
-  const aCurrentText: string; aCurrentValue: T): string;
+  const aCurrentText: string; const aCurrentValue: T): string;
 begin
-  var lMesssage := fUserValidationMessages.Messages[aMessageKind];
+  var lMessageKind := aMessageKind;
+  if (Length(aCurrentText) = 0) and (lMessageKind = TValidationMessageKind.InvalidValueHint) then
+    lMessageKind := TValidationMessageKind.EmptyValueHint;
+
+  var lMesssage := fUserValidationMessages.Messages[lMessageKind];
   var lValuePlaceholder := fUserValidationMessages.ValuePlaceholder;
   if Length(lMesssage) = 0 then
   begin
-    var lDefaultMesssage := GetValidationDefaultMessage(aMessageKind);
+    var lDefaultMesssage := GetValidationDefaultMessage(lMessageKind);
     lMesssage := lDefaultMesssage.ValidationMessage;
     lValuePlaceholder := lDefaultMesssage.ValuePlaceholder;
   end;
@@ -386,7 +405,7 @@ begin
 end;
 
 function TConstraintEdit<T>.GetFormattedMessage(const aMessage: string; const aValuePlaceholder: Char;
-  const aCurrentText: string; aCurrentValue: T): string;
+  const aCurrentText: string; const aCurrentValue: T): string;
 begin
   var lMessageParts := aMessage.Split([aValuePlaceholder]);
   if Length(lMessageParts) = 0 then
@@ -522,22 +541,10 @@ end;
 
 procedure TConstraintEdit<T>.DoExit;
 begin
-  var lExitOk := fExitOnInvalidValue;
   var lValidationResult := IsTextValidInternal(True);
-  if lValidationResult.IsValid then
+  if lValidationResult.IsValid or not lValidationResult.ValidationRequired then
   begin
-    lExitOk := True;
-  end;
-  if not lExitOk then
-  begin
-    if lValidationResult.ValidationNotRequired then
-    begin
-      lExitOk := True;
-    end;
-  end;
-  if lExitOk then
-  begin
-    OnValueChangedUpdateText(fValue);
+    UpdateValueText;
     if Assigned(fInvalidHint) then
       fInvalidHint.HideHint;
     inherited;
@@ -549,11 +556,10 @@ begin
   end;
 end;
 
-procedure TConstraintEdit<T>.DoOnExitQueryValidation(const aValidationResult: TValidationResult<T>;
-  var aValidationRequired: Boolean);
+procedure TConstraintEdit<T>.DoOnExitQueryValidation(var aValidationResult: TValidationResult<T>);
 begin
   if Assigned(fOnExitQueryValidation) then
-    fOnExitQueryValidation(Self, aValidationResult, aValidationRequired);
+    fOnExitQueryValidation(Self, aValidationResult);
 end;
 
 function TConstraintEdit<T>.NewInputValidationData(const aReason: TInputValidationReason): TInputValidationData;
@@ -597,56 +603,53 @@ end;
 
 function TConstraintEdit<T>.IsTextValidInternal(const aOnExit: Boolean): TValidationResult<T>;
 begin
-  var lValidationResult := default(TValidationResult<T>);
-  if fValue.Validated then
+  if fLastValueValidationResultSet and fValue.Validated then
   begin
-    lValidationResult.IsValid := True;
+    Exit(fLastValueValidationResult);
+  end;
+
+  var lValidationResult := default(TValidationResult<T>);
+  var lValueValidated := False;
+  if Length(Text) > 0 then
+  begin
+    lValidationResult := IsTextValid(Text);
+    if lValidationResult.IsValid then
+    begin
+      lValueValidated := IsValueWithinBounds(False, lValidationResult);
+    end;
   end
   else
   begin
-    var lValueValidated := False;
-    if Length(Text) > 0 then
+    lValidationResult.ValidationRequired := not fEmptyValueAllowed;
+  end;
+
+  try
+    fUpdateValueTextSuspended := not aOnExit;
+    if lValueValidated then
     begin
-      lValidationResult := IsTextValid(Text);
-      if lValidationResult.IsValid then
-      begin
-        lValueValidated := IsValueWithinBounds(False, lValidationResult);
-      end
-      else if not Result.CustomInvalidHintSet then
-      begin
-        lValidationResult.InvalidHintTitle := GetValidationMessage(TValidationMessageKind.InvalidTextTitle,
-          Text, lValidationResult.NewValue);
-        lValidationResult.InvalidHintDescription := GetValidationMessage(TValidationMessageKind.InvalidValueHint,
-          Text, lValidationResult.NewValue);
-      end;
+      fValue.Value := lValidationResult.NewValue;
     end
     else
     begin
-      lValidationResult.ValidationNotRequired := True;
+      fValue.Null := True;
     end;
-    try
-      fUpdateValueTextSuspended := not aOnExit;
-      if lValueValidated then
-      begin
-        fValue.Value := lValidationResult.NewValue;
-      end
-      else
-      begin
-        fValue.Null := True;
-      end;
-    finally
-      fUpdateValueTextSuspended := False;
-    end;
-    if aOnExit and not lValidationResult.ValidationNotRequired then
-    begin
-      var lValidationRequired := True;
-      DoOnExitQueryValidation(lValidationResult, lValidationRequired);
-      if not lValidationRequired then
-      begin
-        lValidationResult.ValidationNotRequired := True;
-      end;
-    end;
+  finally
+    fUpdateValueTextSuspended := False;
   end;
+
+  if aOnExit then
+  begin
+    DoOnExitQueryValidation(lValidationResult);
+  end;
+  if not lValidationResult.IsValid and not Result.CustomInvalidHintSet then
+  begin
+    lValidationResult.InvalidHintTitle := GetValidationMessage(TValidationMessageKind.InvalidTextTitle,
+      Text, lValidationResult.NewValue);
+    lValidationResult.InvalidHintDescription := GetValidationMessage(TValidationMessageKind.InvalidValueHint,
+      Text, lValidationResult.NewValue);
+  end;
+  fLastValueValidationResult := lValidationResult;
+  fLastValueValidationResultSet := True;
   Result := lValidationResult;
 end;
 
@@ -711,6 +714,20 @@ begin
   fInvalidHint.Title := aValidationResult.InvalidHintTitle;
   fInvalidHint.Description := aValidationResult.InvalidHintDescription;
   fInvalidHint.ShowHint(Self);
+end;
+
+procedure TConstraintEdit<T>.UpdateValueText;
+begin
+  if fUpdateValueTextSuspended then
+    Exit;
+
+  if fValue.Null then
+    SetInheritedText(GetNoValueText)
+  else
+  begin
+    var lTempValue := fValue.Value;
+    SetInheritedText(GetValueText(lTempValue));
+  end;
 end;
 
 { TInputValidationData }

@@ -25,7 +25,10 @@ type
     end;
   const
     NumberChars = ['0'..'9'];
-  var
+
+    class var fFormatSettings: TFormatSettings;
+    class var fShortDateFormatWithoutYear: string;
+
     class function GetDatePartOrder(const aFormatSettings: TFormatSettings): TDatePartOrder;
     class function GetCompleteYear(const aYear: Word): Word;
     class function TryStrToWord(const aStr: string; out aValue: Word): Boolean;
@@ -40,6 +43,7 @@ type
     class function TestBySeparator(const aTextDate: TDateFormat; const aIsCompleteParse, aOptionalYear: Boolean;
       const aDatePartOrder: TDatePartOrder; out aDate: TSimpleDate): Boolean;
   public
+    class constructor ClassCreate;
     class function TryToParseDate(const aText: string; out aDate: TDate): Boolean; overload;
     class function TryToParseDate(const aText: string; const aFormatSettings: TFormatSettings;
       out aDate: TDate): Boolean; overload;
@@ -50,19 +54,26 @@ type
     class function InputTextMatchesDate(const aInputText: string; const aOptionalYear: Boolean): Boolean; overload;
     class function InputTextMatchesDate(const aInputText: string; const aOptionalYear: Boolean;
       const aFormatSettings: TFormatSettings): Boolean; overload;
+    class function SimpleDateToStr(const aDate: TSimpleDate): string; overload;
+    class function SimpleDateToStr(const aDate: TSimpleDate; const aFormatSettings: TFormatSettings): string; overload;
   end;
 
 implementation
 
 uses System.DateUtils, System.Generics.Collections, System.Generics.Defaults;
 
-
 { TDateTools }
+
+class constructor TDateTools.ClassCreate;
+begin
+  fFormatSettings := TFormatSettings.Create;
+  fShortDateFormatWithoutYear := StringReplace(fFormatSettings.ShortDateFormat, 'y', '', [TReplaceFlag.rfReplaceAll]);
+  fShortDateFormatWithoutYear := StringReplace(fShortDateFormatWithoutYear, '//', '/', [TReplaceFlag.rfReplaceAll]);
+end;
 
 class function TDateTools.TryToParseDate(const aText: string; out aDate: TDate): Boolean;
 begin
-  var lSettings := TFormatSettings.Create;
-  Result := TryToParseDate(aText, lSettings, aDate);
+  Result := TryToParseDate(aText, fFormatSettings, aDate);
 end;
 
 class function TDateTools.TryToParseDate(const aText: string; const aFormatSettings: TFormatSettings;
@@ -82,14 +93,38 @@ end;
 
 class function TDateTools.TryToParseSimpleDate(const aText: string; const aOptionalYear: Boolean; out aDate: TSimpleDate): Boolean;
 begin
-  var lSettings := TFormatSettings.Create;
-  Result := TryToParseSimpleDate(aText, aOptionalYear, lSettings, aDate);
+  Result := TryToParseSimpleDate(aText, aOptionalYear, fFormatSettings, aDate);
 end;
 
 class function TDateTools.TryToParseSimpleDate(const aText: string; const aOptionalYear: Boolean; const aFormatSettings: TFormatSettings;
   out aDate: TSimpleDate): Boolean;
 begin
   Result := TryToParseDateInternal(aText, True, aOptionalYear, aFormatSettings, aDate);
+end;
+
+class function TDateTools.SimpleDateToStr(const aDate: TSimpleDate): string;
+begin
+  Result := SimpleDateToStr(aDate, fFormatSettings);
+end;
+
+class function TDateTools.SimpleDateToStr(const aDate: TSimpleDate; const aFormatSettings: TFormatSettings): string;
+begin
+  if aDate.Year = 0 then
+  begin
+    var lDate: TDateTime;
+    if TryEncodeDate(SimpleDateLeapYearExample, aDate.Month, aDate.Day, lDate) then
+    begin
+      Result := FormatDateTime(fShortDateFormatWithoutYear, lDate, aFormatSettings);
+    end
+    else
+    begin
+      Result := '???';
+    end;
+  end
+  else
+  begin
+    Result := FormatDateTime('ddddd', aDate.AsDate, aFormatSettings);
+  end;
 end;
 
 class function TDateTools.InputTextMatchesDate(const aInputText: string; const aOptionalYear: Boolean): Boolean;
@@ -253,9 +288,8 @@ begin
     var lYear := aCandidate.Year;
     if aOptionalYear and (lYear = 0) then
     begin
-      const LeapYearExample = 2024;
       // If no year is set we need to test day and month with a leap year example.
-      lYear := LeapYearExample;
+      lYear := SimpleDateLeapYearExample;
       var lDateTime: TDateTime;
       if TryEncodeDate(lYear, lMonth, aCandidate.Day, lDateTime) then
       begin
