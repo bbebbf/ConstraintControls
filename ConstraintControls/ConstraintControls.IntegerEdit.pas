@@ -28,6 +28,10 @@ type
     property Value: TIntegerEditValue index TConstraintEditValueType.vtValue read GetValue write SetValue;
     property BoundsLower: TIntegerEditValue index TConstraintEditValueType.vtBoundsLower read GetValue write SetValue;
     property BoundsUpper: TIntegerEditValue index TConstraintEditValueType.vtBoundsUpper read GetValue write SetValue;
+    property OnExitQueryValidation: TOnExitQueryValidation
+      read GetOnExitQueryValidation write SetOnExitQueryValidation;
+    property OnExitQueryValidationValue: TOnExitQueryValidationValue<Int64>
+      read fOnExitQueryValidationValue write fOnExitQueryValidationValue;
   end;
 
 implementation

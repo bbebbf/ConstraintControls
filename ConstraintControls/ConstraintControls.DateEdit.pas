@@ -39,7 +39,10 @@ type
     property Value: TDateEditValue index TConstraintEditValueType.vtValue read GetValue write SetValue;
     property BoundsLower: TDateEditValue index TConstraintEditValueType.vtBoundsLower read GetValue write SetValue;
     property BoundsUpper: TDateEditValue index TConstraintEditValueType.vtBoundsUpper read GetValue write SetValue;
-    property OnExitQueryValidation: TOnExitQueryValidation<TSimpleDate> read fOnExitQueryValidation write fOnExitQueryValidation;
+    property OnExitQueryValidation: TOnExitQueryValidation
+      read GetOnExitQueryValidation write SetOnExitQueryValidation;
+    property OnExitQueryValidationValue: TOnExitQueryValidationValue<TSimpleDate>
+      read fOnExitQueryValidationValue write fOnExitQueryValidationValue;
   end;
 
 implementation
@@ -120,9 +123,7 @@ function TDateEdit.IsTextValid(const aText: string): TValidationResult<TSimpleDa
 begin
   Result := default(TValidationResult<TSimpleDate>);
   if TDateTools.TryToParseSimpleDate(aText, fOptionalYear, fFormatSettings, Result.NewValue) then
-  begin
     Result.IsValid := True;
-  end;
 end;
 
 { TDateEditValue }
